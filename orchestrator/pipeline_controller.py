@@ -1,262 +1,378 @@
-from orchestrator.execution_state import (
-    ExecutionState
+from analysis.evidence_scorer import (
+    compute_evidence_score
 )
 
-from understanding.claim_decomposer import (
-    decompose_claim
-)
-
-from understanding.entity_resolver import (
-    resolve_entities
-)
-
-from understanding.query_planner import (
-    build_search_queries
-)
-
-from understanding.claim_classifier import (
-    classify_claim
-)
-
-from understanding.claim_normalizer import (
-    normalize_claim
-)
-
-from analysis.claim_frame_extractor import (
-    extract_claim_frame
-)
-
-from retrieval.hybrid_retriever import (
-    retrieve_evidence,
-    rerank_evidence_pipeline
-)
-
-from analysis.evidence_deduplicator import (
-    deduplicate_evidence
-)
-
-from analysis.nli_analyzer import (
-    analyze_claim_evidence
-)
-
-from analysis.verdict_aggregator import (
-    aggregate_verdicts
+from analysis.consensus_engine import (
+    compute_consensus
 )
 
 
-class VerificationPipeline:
+def aggregate_verdicts(
+    claim,
+    evidence_list
+):
 
-    def run(self, claim):
+    scored_evidence = []
 
-        state = ExecutionState()
+    # ==========================================
+    # SCORE ALL EVIDENCE
+    # ==========================================
 
-        state.claim = claim
+    for evidence in evidence_list:
 
-        # ==========================================
-        # STAGE 1 — UNDERSTANDING
-        # ==========================================
-        self.claim_understanding(state)
+        scored = compute_evidence_score(
 
-        # ==========================================
-        # STAGE 2 — RETRIEVAL
-        # ==========================================
-        self.retrieve_evidence(state)
+            claim,
 
-        # ==========================================
-        # STAGE 3 — SCORING
-        # ==========================================
-        self.score_evidence(state)
-
-        # ==========================================
-        # STAGE 4 — ANALYSIS
-        # ==========================================
-        self.analyze_evidence(state)
-
-        # ==========================================
-        # STAGE 5 — REASONING
-        # ==========================================
-        self.reason_over_evidence(state)
-
-        # ==========================================
-        # STAGE 6 — SYNTHESIS
-        # ==========================================
-        self.generate_final_report(state)
-
-        return state
-
-    # =====================================================
-    # STAGE 1 — CLAIM UNDERSTANDING
-    # =====================================================
-
-    def claim_understanding(self, state):
-
-        # ==========================================
-        # NORMALIZE CLAIM
-        # ==========================================
-        state.normalized_claim = normalize_claim(
-            state.claim
-        )
-
-        # ==========================================
-        # DECOMPOSE CLAIM
-        # ==========================================
-        decomposition = decompose_claim(
-            state.normalized_claim
-        )
-
-        state.decomposition = decomposition
-
-        # ==========================================
-        # CLAIM FRAME EXTRACTION
-        # ==========================================
-        state.claim_frame = extract_claim_frame(
-            state.normalized_claim,
-            state.decomposition
-        )
-
-        # ==========================================
-        # ENTITY RESOLUTION
-        # ==========================================
-        resolved_entities = resolve_entities(
-            decomposition
-        )
-
-        state.entities = resolved_entities
-
-        # ==========================================
-        # QUERY PLANNING
-        # ==========================================
-        queries = build_search_queries(
-            state.normalized_claim,
-            decomposition
-        )
-
-        state.retrieval_queries = queries
-
-        # ==========================================
-        # CLAIM CLASSIFICATION
-        # ==========================================
-        state.decomposition["claim_type"] = classify_claim(
-            state.normalized_claim
-        )
-
-    # =====================================================
-    # STAGE 2 — RETRIEVAL
-    # =====================================================
-
-    def retrieve_evidence(self, state):
-
-        # ==========================================
-        # RAW RETRIEVAL
-        # ==========================================
-        evidence = retrieve_evidence(
-            state.retrieval_queries
-        )
-
-        state.raw_evidence = evidence
-
-        # ==========================================
-        # CROSS-ENCODER RERANKING
-        # ==========================================
-        ranked = rerank_evidence_pipeline(
-            state.normalized_claim,
             evidence
         )
 
-        # ==========================================
-        # DEDUPLICATION
-        # ==========================================
-        ranked = deduplicate_evidence(
-            ranked
+        # ======================================
+        # QUALITY FILTERING
+        # ======================================
+
+        weak_alignment = (
+            scored.alignment_score < 0.35
         )
 
-        state.ranked_evidence = ranked
-
-    # =====================================================
-    # STAGE 3 — EVIDENCE SCORING
-    # =====================================================
-
-    def score_evidence(self, state):
-
-        from analysis.evidence_scorer import (
-            compute_evidence_score
+        weak_fact_match = (
+            scored.fact_score < 5
         )
 
-        scored = []
+        weak_rerank = (
+            scored.reranker_score < 1
+        )
 
-        for evidence in state.ranked_evidence:
+        weak_content = (
+            len(scored.content.split()) < 10
+        )
 
-            scored_evidence = compute_evidence_score(
+        # --------------------------------------
+        # DROP VERY WEAK EVIDENCE
+        # --------------------------------------
 
-                state.normalized_claim,
+        if (
+            weak_alignment
+            or
+            weak_fact_match
+            or
+            weak_rerank
+            or
+            weak_content
+        ):
+            continue
 
+        scored_evidence.append(
+            scored
+        )
+
+    # ==========================================
+    # SAFETY CHECK
+    # ==========================================
+
+    if not scored_evidence:
+
+        return {
+
+            "verdict": "NEUTRAL",
+
+            "confidence": 0.0,
+
+            "top_evidence": None,
+
+            "margin": 0
+        }
+
+    # ==========================================
+    # SORT BY FINAL SCORE
+    # ==========================================
+
+    scored_evidence.sort(
+
+        key=lambda x: x.final_score,
+
+        reverse=True
+    )
+
+    # ==========================================
+    # CONSENSUS ANALYSIS
+    # ==========================================
+
+    consensus = compute_consensus(
+        scored_evidence[:10]
+    )
+
+    # ==========================================
+    # TOP EVIDENCE
+    # ==========================================
+
+    top = scored_evidence[0]
+
+    # ==========================================
+    # LABEL COUNTS
+    # ==========================================
+
+    entailment_count = 0
+
+    contradiction_count = 0
+
+    neutral_count = 0
+
+    # ==========================================
+    # WEIGHTED LABEL SCORES
+    # ==========================================
+
+    entailment_score = 0
+
+    contradiction_score = 0
+
+    neutral_score = 0
+
+    # ==========================================
+    # TRUSTED EVIDENCE ONLY
+    # ==========================================
+
+    trusted_evidence = []
+
+    for evidence in scored_evidence[:5]:
+
+        if (
+
+            evidence.final_score >= 20
+
+            and
+
+            evidence.alignment_score >= 0.45
+
+        ):
+
+            trusted_evidence.append(
                 evidence
             )
 
-            scored.append(
-                scored_evidence
+    # ==========================================
+    # LABEL ANALYSIS
+    # ==========================================
+
+    for evidence in trusted_evidence:
+
+        if evidence.nli_label == "ENTAILMENT":
+
+            entailment_count += 1
+
+            entailment_score += (
+                evidence.final_score
             )
 
-        # ==========================================
-        # SORT BY FINAL SCORE
-        # ==========================================
-        scored = sorted(
+        elif evidence.nli_label == "CONTRADICTION":
 
-            scored,
+            contradiction_count += 1
 
-            key=lambda x: x.final_score,
+            contradiction_score += (
+                evidence.final_score
+            )
 
-            reverse=True
+        else:
+
+            neutral_count += 1
+
+            neutral_score += (
+                evidence.final_score
+            )
+
+    # ==========================================
+    # WEIGHTED VOTING
+    # ==========================================
+
+    label_scores = {
+
+        "ENTAILMENT": entailment_score,
+
+        "NEUTRAL": neutral_score,
+
+        "CONTRADICTION": contradiction_score
+    }
+
+    weighted_winner = max(
+
+        label_scores,
+
+        key=label_scores.get
+    )
+
+    # ==========================================
+    # DOMINANCE MARGIN
+    # ==========================================
+
+    second_score = 0
+
+    if len(scored_evidence) > 1:
+
+        second_score = (
+            scored_evidence[1]
+            .final_score
         )
 
-        state.ranked_evidence = scored
+    margin = (
+        top.final_score
+        -
+        second_score
+    )
 
-    # =====================================================
-    # STAGE 4 — NLI ANALYSIS
-    # =====================================================
+    # ==========================================
+    # INITIAL LABEL
+    # ==========================================
 
-    def analyze_evidence(self, state):
+    verdict = weighted_winner
 
-        analyzed = analyze_claim_evidence(
+    # ==========================================
+    # STRONG ENTAILMENT OVERRIDE
+    # ==========================================
 
-            state.normalized_claim,
+    strong_entailments = [
 
-            state.ranked_evidence[:10]
+        e for e in trusted_evidence
+
+        if (
+
+            e.nli_label == "ENTAILMENT"
+
+            and
+
+            e.final_score >= 30
+
+            and
+
+            e.alignment_score >= 0.60
+
+            and
+
+            e.fact_score >= 10
         )
+    ]
 
-        state.nli_results = analyzed
+    if len(strong_entailments) >= 1:
 
-    # =====================================================
-    # STAGE 5 — REASONING
-    # =====================================================
+        verdict = "ENTAILMENT"
 
-    def reason_over_evidence(self, state):
+    # ==========================================
+    # STRONG CONTRADICTION OVERRIDE
+    # ==========================================
 
-        aggregated = aggregate_verdicts(
+    strong_contradictions = [
 
-            state.normalized_claim,
+        e for e in trusted_evidence
 
-            state.nli_results
+        if (
+
+            e.nli_label == "CONTRADICTION"
+
+            and
+
+            e.final_score >= 30
+
+            and
+
+            e.alignment_score >= 0.60
+
+            and
+
+            e.fact_score >= 10
         )
+    ]
 
-        state.final_verdict = (
-            aggregated["verdict"]
+    if len(strong_contradictions) >= 1:
+
+        verdict = "CONTRADICTION"
+
+    # ==========================================
+    # FALLBACK MAJORITY LOGIC
+    # ==========================================
+
+    if verdict == "NEUTRAL":
+
+        if entailment_count >= 2:
+
+            verdict = "ENTAILMENT"
+
+        elif contradiction_count >= 2:
+
+            verdict = "CONTRADICTION"
+
+    # ==========================================
+    # HIGH CONFIDENCE OVERRIDE
+    # ==========================================
+
+    if (
+
+        top.nli_label == "ENTAILMENT"
+
+        and
+
+        top.final_score >= 35
+
+        and
+
+        top.alignment_score >= 0.65
+
+        and
+
+        top.fact_score >= 12
+
+    ):
+
+        verdict = "ENTAILMENT"
+
+    # ==========================================
+    # CONFIDENCE
+    # ==========================================
+
+    confidence = min(
+
+        1.0,
+
+        (
+            (
+                top.final_score
+                /
+                40
+            )
+            * 0.5
+            +
+            consensus["strength"]
+            * 0.3
+            +
+            (
+                label_scores.get(
+                    verdict,
+                    0
+                )
+                /
+                100
+            )
+            * 0.2
         )
+    )
 
-        state.confidence_score = (
-            aggregated["confidence"]
+    # ==========================================
+    # RETURN
+    # ==========================================
+
+    return {
+
+        "verdict": verdict,
+
+        "confidence": confidence,
+
+        "top_evidence": top,
+
+        "margin": margin,
+
+        "consensus": consensus,
+
+        "label_scores": label_scores,
+
+        "trusted_evidence_count": len(
+            trusted_evidence
         )
-
-    # =====================================================
-    # STAGE 6 — REPORT SYNTHESIS
-    # =====================================================
-
-    def generate_final_report(self, state):
-
-        from analysis.report_generator import (
-            build_report
-        )
-
-        state.final_report = build_report(
-            state
-        )
+    }

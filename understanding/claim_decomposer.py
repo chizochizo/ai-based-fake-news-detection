@@ -1,7 +1,5 @@
 import re
-
 import spacy
-
 
 nlp = spacy.load(
     "en_core_web_sm"
@@ -12,23 +10,54 @@ nlp = spacy.load(
 # ==========================================
 
 BAD_ENTITY_TERMS = {
-
     "conduct",
     "conducted",
-
     "host",
     "hosts",
     "hosted",
     "hosting",
-
     "organize",
     "organized",
     "organised",
-
     "hold",
     "holds",
     "held"
 }
+
+# ==========================================
+# ACTION NORMALIZATION
+# ==========================================
+
+ACTION_NORMALIZATION = {
+
+    "hosts": "conduct",
+    "hosted": "conduct",
+    "hosting": "conduct",
+
+    "conducted": "conduct",
+
+    "organized": "conduct",
+    "organised": "conduct",
+
+    "holds": "conduct",
+    "held": "conduct",
+
+    "launched": "launch",
+
+    "announced": "announce",
+
+    "reported": "report"
+}
+
+
+def normalize_action(action):
+
+    action = action.lower()
+
+    return ACTION_NORMALIZATION.get(
+        action,
+        action
+    )
 
 
 def clean_entity_text(text):
@@ -98,11 +127,29 @@ def decompose_claim(claim):
         # ACTIONS
         # --------------------------------------
 
-        if token.pos_ in ["VERB", "AUX"]:
+        if (
 
-            actions.append(
-                token.text.lower()
+            token.pos_ in ["VERB", "AUX"]
+
+            or
+
+            (
+                token.dep_ == "ROOT"
+                and
+                token.pos_ in ["NOUN", "PROPN"]
             )
+
+        ):
+
+            if token.is_alpha:
+
+                normalized = normalize_action(
+                    token.lemma_.lower()
+                )
+
+                actions.append(
+                    normalized
+                )
 
         # --------------------------------------
         # NOUNS
@@ -166,6 +213,115 @@ def decompose_claim(claim):
     noun_chunks = list(set(noun_chunks))
 
     # ==========================================
+    # CLAIM TYPE
+    # ==========================================
+
+    claim_lower = claim.lower()
+
+    claim_type = "general"
+
+    # ------------------------------------------
+    # STATEMENT CLAIM
+    # ------------------------------------------
+
+    if any(word in claim_lower for word in [
+
+        "said",
+        "announced",
+        "reported",
+        "claims",
+        "claim",
+        "stated",
+        "according to"
+
+    ]):
+
+        claim_type = "statement"
+
+    # ------------------------------------------
+    # EVENT CLAIM
+    # ------------------------------------------
+
+    elif any(word in claim_lower for word in [
+
+        "won",
+        "hosted",
+        "conducted",
+        "held",
+        "launched",
+        "organized",
+        "organised",
+        "performed",
+        "celebrated"
+
+    ]):
+
+        claim_type = "event"
+
+    # ------------------------------------------
+    # NUMERIC CLAIM
+    # ------------------------------------------
+
+    elif any(char.isdigit() for char in claim):
+
+        claim_type = "numeric"
+
+    # ------------------------------------------
+    # COMPARISON CLAIM
+    # ------------------------------------------
+
+    elif any(word in claim_lower for word in [
+
+        "better",
+        "worse",
+        "higher",
+        "lower",
+        "more than",
+        "less than",
+        "largest",
+        "smallest",
+        "biggest"
+
+    ]):
+
+        claim_type = "comparison"
+
+    # ------------------------------------------
+    # TEMPORAL CLAIM
+    # ------------------------------------------
+
+    elif any(word in claim_lower for word in [
+
+        "today",
+        "yesterday",
+        "tomorrow",
+        "currently",
+        "recently",
+        "in 2024",
+        "in 2025",
+        "in 2026"
+
+    ]):
+
+        claim_type = "temporal"
+
+    # ------------------------------------------
+    # CAUSAL CLAIM
+    # ------------------------------------------
+
+    elif any(word in claim_lower for word in [
+
+        "because",
+        "due to",
+        "caused",
+        "resulted in",
+        "led to"
+
+    ]):
+
+        claim_type = "causal"
+
+    # ==========================================
     # RETURN
     # ==========================================
 
@@ -181,5 +337,7 @@ def decompose_claim(claim):
 
         "numbers": numbers,
 
-        "dates": dates
+        "dates": dates,
+
+        "claim_type": claim_type
     }

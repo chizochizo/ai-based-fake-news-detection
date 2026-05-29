@@ -2,14 +2,113 @@ from analysis.semantic_alignment import (
     compute_alignment_score
 )
 
+from analysis.source_scorer import (
+    compute_source_score
+)
+
 from analysis.fact_matcher import (
     compare_fact_structure
 )
 
+from analysis.temporal_scorer import (
+    compute_temporal_score
+)
+
+from urllib.parse import urlparse
+from collections import Counter
+
+
+# =====================================================
+# DOMAIN EXTRACTION
+# =====================================================
+
+def extract_domain(url):
+
+    try:
+
+        parsed = urlparse(url)
+
+        domain = parsed.netloc.lower()
+
+        domain = domain.replace(
+            "www.",
+            ""
+        )
+
+        return domain
+
+    except:
+
+        return "unknown"
+
+
+# =====================================================
+# PROVENANCE SCORE
+# =====================================================
+
+def compute_provenance_score(
+    evidence,
+    evidence_list=None
+):
+
+    if not evidence_list:
+
+        return 0
+
+    domains = []
+
+    for item in evidence_list:
+
+        domain = extract_domain(
+            item.source_url
+        )
+
+        domains.append(domain)
+
+    domain_counts = Counter(
+        domains
+    )
+
+    current_domain = extract_domain(
+        evidence.source_url
+    )
+
+    count = domain_counts.get(
+        current_domain,
+        1
+    )
+
+    # ==========================================
+    # INDEPENDENT SOURCE
+    # ==========================================
+
+    if count == 1:
+
+        return 2.5
+
+    # ==========================================
+    # LIGHT DUPLICATION
+    # ==========================================
+
+    elif count <= 3:
+
+        return 0.5
+
+    # ==========================================
+    # HEAVY SOURCE DOMINANCE
+    # ==========================================
+
+    return -3.0
+
+
+# =====================================================
+# MAIN SCORER
+# =====================================================
 
 def compute_evidence_score(
     claim,
-    evidence
+    evidence,
+    evidence_list=None
 ):
 
     # ==========================================
@@ -54,6 +153,33 @@ def compute_evidence_score(
     fact_score = fact_match["score"]
 
     # ==========================================
+    # SOURCE TRUST SCORE
+    # ==========================================
+
+    source_score = compute_source_score(
+        evidence.source_url
+    )
+
+    # ==========================================
+    # TEMPORAL SCORE
+    # ==========================================
+
+    temporal_score = compute_temporal_score(
+        evidence.content
+    )
+
+    # ==========================================
+    # PROVENANCE SCORE
+    # ==========================================
+
+    provenance_score = (
+        compute_provenance_score(
+            evidence,
+            evidence_list
+        )
+    )
+
+    # ==========================================
     # LABEL BONUS
     # ==========================================
 
@@ -66,6 +192,16 @@ def compute_evidence_score(
     elif evidence.nli_label == "CONTRADICTION":
 
         label_bonus = -1.5
+
+    # ==========================================
+    # CONFLICT PENALTY
+    # ==========================================
+
+    conflict_penalty = (
+
+        fact_match["conflict_count"]
+        * 1.5
+    )
 
     # ==========================================
     # FINAL COMBINED SCORE
@@ -89,7 +225,23 @@ def compute_evidence_score(
 
         +
 
+        source_score
+
+        +
+
+        provenance_score
+
+        +
+
+        temporal_score
+
+        +
+
         label_bonus
+
+        -
+
+        conflict_penalty
     )
 
     # ==========================================
@@ -108,6 +260,22 @@ def compute_evidence_score(
 
     evidence.fact_match = (
         fact_match
+    )
+
+    evidence.source_score = (
+        source_score
+    )
+
+    evidence.temporal_score = (
+        temporal_score
+    )
+
+    evidence.provenance_score = (
+        provenance_score
+    )
+
+    evidence.conflict_penalty = (
+        conflict_penalty
     )
 
     return evidence
