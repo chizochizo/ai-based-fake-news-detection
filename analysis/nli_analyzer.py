@@ -1,5 +1,12 @@
+import traceback
 from transformers import pipeline
 
+
+# =====================================================
+# LOAD NLI MODEL
+# =====================================================
+
+print("\nLOADING NLI MODEL...\n")
 
 nli_pipeline = pipeline(
 
@@ -10,16 +17,32 @@ nli_pipeline = pipeline(
     device=-1
 )
 
+print("\nNLI MODEL LOADED\n")
+
+
+# =====================================================
+# LABEL NORMALIZATION
+# =====================================================
 
 LABEL_MAP = {
 
     "LABEL_0": "CONTRADICTION",
-
     "LABEL_1": "NEUTRAL",
+    "LABEL_2": "ENTAILMENT",
 
-    "LABEL_2": "ENTAILMENT"
+    "contradiction": "CONTRADICTION",
+    "neutral": "NEUTRAL",
+    "entailment": "ENTAILMENT",
+
+    "CONTRADICTION": "CONTRADICTION",
+    "NEUTRAL": "NEUTRAL",
+    "ENTAILMENT": "ENTAILMENT"
 }
 
+
+# =====================================================
+# LABEL CALIBRATION
+# =====================================================
 
 def calibrate_nli_label(
     raw_label,
@@ -30,7 +53,7 @@ def calibrate_nli_label(
 
     label = LABEL_MAP.get(
         raw_label,
-        raw_label
+        "NEUTRAL"
     )
 
     # ==========================================
@@ -43,15 +66,15 @@ def calibrate_nli_label(
 
         and
 
-        alignment_score > 0.65
+        alignment_score > 0.45
 
         and
 
-        fact_score > 12
+        fact_score > 15
 
         and
 
-        confidence > 0.80
+        confidence > 0.90
 
     ):
 
@@ -76,6 +99,10 @@ def calibrate_nli_label(
     return label
 
 
+# =====================================================
+# MAIN NLI ANALYSIS
+# =====================================================
+
 def analyze_claim_evidence(
     claim,
     evidence_list
@@ -85,30 +112,93 @@ def analyze_claim_evidence(
 
     for evidence in evidence_list:
 
-        result = nli_pipeline(
+        try:
 
-            f"{claim} </s></s> {evidence.content}"
+            print("\n[NLI INPUT]")
+            print("CLAIM:", claim)
+            print("EVIDENCE:", evidence.content)
 
-        )[0]
+            result = nli_pipeline(
+                {
+                    "text": claim,
+                    "text_pair": evidence.content
+                }
+            )
+            if isinstance(result, list):
+                result = result[0]
 
-        raw_label = result["label"]
+            print("\n[NLI RAW RESULT]")
+            print(result)
 
-        confidence = result["score"]
+            raw_label = result.get(
+                "label",
+                "NEUTRAL"
+            )
 
-        calibrated_label = calibrate_nli_label(
+            confidence = float(
+                result.get(
+                    "score",
+                    0.0
+                )
+            )
+            print("\n[NLI DEBUG]")
+            print("RAW LABEL:", raw_label)
+            print("CONFIDENCE:", confidence)
+            print(
+                "ALIGNMENT:",
+                getattr(
+                    evidence,
+                    "alignment_score",
+                    0
+                )
+            )
+            print(
+                "FACT SCORE:",
+                getattr(
+                    evidence,
+                    "fact_score",
+                    0
+                )
+            )
 
-            raw_label=raw_label,
+            calibrated_label = calibrate_nli_label(
 
-            confidence=confidence,
+                raw_label=raw_label,
 
-            alignment_score=evidence.alignment_score,
+                confidence=confidence,
 
-            fact_score=evidence.fact_score
-        )
+                alignment_score=getattr(
+                    evidence,
+                    "alignment_score",
+                    0
+                ),
 
-        evidence.nli_label = calibrated_label
+                fact_score=getattr(
+                    evidence,
+                    "fact_score",
+                    0
+                )
+            )
+            print(
 
-        evidence.nli_confidence = confidence
+                "CALIBRATED LABEL:",
+                calibrated_label
+            )
+
+            evidence.nli_label = calibrated_label
+
+            evidence.nli_confidence = confidence
+
+        except Exception as e:
+
+            print("\nNLI ERROR:")
+            print(e)
+
+            traceback.print_exc()
+
+            evidence.nli_label = "NEUTRAL"
+
+            evidence.nli_confidence = 0.0
 
         analyzed.append(
             evidence

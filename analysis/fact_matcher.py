@@ -3,6 +3,11 @@ import spacy
 import re
 from datetime import datetime
 
+from analysis.wikidata_utils import (
+    entities_match,
+    normalize_entity,
+    entity_similarity
+)
 
 nlp = spacy.load(
     "en_core_web_sm"
@@ -169,6 +174,20 @@ CONTRADICTION_ACTIONS = {
 }
 
 
+def entity_overlap_score(
+    ids_a,
+    ids_b
+):
+
+    if not ids_a or not ids_b:
+
+        return 0
+
+    overlap = set(ids_a) & set(ids_b)
+
+    return len(overlap)
+
+
 def normalize_action(action):
 
     action = action.lower()
@@ -250,6 +269,30 @@ def extract_years(text):
     )
 
 
+# =====================================================
+# WIKIDATA ENTITY RESOLUTION
+# =====================================================
+
+def enrich_entities_with_wikidata(
+    entities
+):
+
+    enriched = []
+
+    for ent in entities:
+
+        enriched.append({
+
+            "text": ent["text"],
+
+            "label": ent["label"],
+
+            "wikidata_ids": []
+        })
+
+    return enriched
+
+
 def extract_fact_structure(text):
 
     doc = nlp(text)
@@ -279,14 +322,22 @@ def extract_fact_structure(text):
     # ENTITIES
     # ==========================================
 
+    raw_entities = []
+
     for ent in doc.ents:
 
-        structure["entities"].append({
+        raw_entities.append({
 
             "text": ent.text.lower(),
 
             "label": ent.label_
         })
+
+    structure["entities"] = (
+        enrich_entities_with_wikidata(
+            raw_entities
+        )
+    )
 
     # ==========================================
     # NUMBERS
@@ -372,6 +423,10 @@ def extract_fact_structure(text):
     return structure
 
 
+# =====================================================
+# ENTITY OVERLAP
+# =====================================================
+
 def has_entity_overlap(
     claim_entities,
     evidence_entities
@@ -381,12 +436,36 @@ def has_entity_overlap(
 
         for evidence_ent in evidence_entities:
 
+            # ----------------------------------
+            # WIKIDATA MATCH
+            # ----------------------------------
+
+            wikidata_score = entity_overlap_score(
+
+                claim_ent.get(
+                    "wikidata_ids",
+                    []
+                ),
+
+                evidence_ent.get(
+                    "wikidata_ids",
+                    []
+                )
+            )
+
+            if wikidata_score > 0:
+
+                return True
+
+            # ----------------------------------
+            # FUZZY MATCH
+            # ----------------------------------
+
             similarity = fuzz.token_sort_ratio(
 
                 claim_ent["text"],
 
                 evidence_ent["text"]
-
             )
 
             if similarity >= 80:
@@ -440,8 +519,6 @@ def detect_contextual_conflicts(
             try:
 
                 age = CURRENT_YEAR - int(year)
-
-                # old article framed as current
 
                 if age >= 2:
 
@@ -625,12 +702,38 @@ def compare_fact_structure(
 
         for evidence_ent in evidence_struct["entities"]:
 
+            # -----------------------------------------
+            # WIKIDATA ENTITY BOOST
+            # -----------------------------------------
+
+            wikidata_score = entity_overlap_score(
+
+                claim_ent.get(
+                    "wikidata_ids",
+                    []
+                ),
+
+                evidence_ent.get(
+                    "wikidata_ids",
+                    []
+                )
+            )
+
+            if wikidata_score > 0:
+
+                entity_score += 5
+
+                continue
+
+            # -----------------------------------------
+            # FUZZY ENTITY MATCH
+            # -----------------------------------------
+
             similarity = fuzz.token_sort_ratio(
 
                 claim_ent["text"],
 
                 evidence_ent["text"]
-
             )
 
             if similarity >= 85:

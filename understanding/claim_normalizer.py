@@ -38,19 +38,45 @@ ACTION_GROUPS = {
 
         "run",
         "ran",
-        "running"
+        "running",
+
+        "complete",
+        "completed",
+        "completes",
+        "completion",
+
+        "launch",
+        "launched",
+        "launches",
+
+        "execute",
+        "executed",
+
+        "perform",
+        "performed",
+
+        "carry",
+        "carried"
     ],
 
     "say": [
 
         "said",
         "says",
+
         "announce",
         "announced",
+        "announcing",
+
+        "report",
         "reported",
         "reports",
+
+        "claim",
         "claimed",
         "claims",
+
+        "state",
         "stated",
         "states"
     ],
@@ -59,17 +85,25 @@ ACTION_GROUPS = {
 
         "won",
         "wins",
+
+        "defeat",
         "defeated",
-        "beats",
-        "beat"
+
+        "beat",
+        "beats"
     ],
 
     "support": [
 
+        "support",
         "supports",
         "supported",
+
+        "back",
         "backs",
         "backed",
+
+        "endorse",
         "endorsed"
     ]
 }
@@ -93,10 +127,64 @@ for canonical, variants in (
 
 
 # =====================================================
+# PHRASE NORMALIZATION
+# =====================================================
+
+PHRASE_NORMALIZATION = {
+
+    "start up": "startup",
+
+    "parting social": "farewell event",
+
+    "social parting": "farewell event",
+
+    "programme": "program"
+}
+
+
+# =====================================================
+# TEXT CLEANER
+# =====================================================
+
+def clean_text(text):
+
+    text = text.lower()
+
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    )
+
+    return text.strip()
+
+
+# =====================================================
 # NORMALIZATION
 # =====================================================
 
 def normalize_claim(claim):
+
+    claim = clean_text(
+        claim
+    )
+
+    # ==========================================
+    # PHRASE NORMALIZATION
+    # ==========================================
+
+    for old, new in (
+        PHRASE_NORMALIZATION.items()
+    ):
+
+        claim = claim.replace(
+            old,
+            new
+        )
+
+    # ==========================================
+    # NLP PIPELINE
+    # ==========================================
 
     doc = nlp(claim)
 
@@ -121,7 +209,7 @@ def normalize_claim(claim):
             )
 
         # ==========================================
-        # LEMMATIZATION
+        # VERB LEMMATIZATION
         # ==========================================
 
         elif token.pos_ == "VERB":
@@ -129,6 +217,10 @@ def normalize_claim(claim):
             normalized_tokens.append(
                 token.lemma_.lower()
             )
+
+        # ==========================================
+        # DEFAULT TOKEN
+        # ==========================================
 
         else:
 

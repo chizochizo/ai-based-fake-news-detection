@@ -1,378 +1,149 @@
-from analysis.evidence_scorer import (
-    compute_evidence_score
+from understanding.query_planner import (
+    build_search_queries
 )
-
-from analysis.consensus_engine import (
-    compute_consensus
+from retrieval.hybrid_retriever import (
+    retrieve_evidence
 )
+from analysis.verdict_aggregator import (
+    aggregate_verdicts
+)
+from analysis.report_generator import (
+    build_report
+)
+from types import SimpleNamespace
 
 
-def aggregate_verdicts(
-    claim,
-    evidence_list
-):
+# =====================================================
+# MAIN VERIFICATION PIPELINE
+# =====================================================
 
-    scored_evidence = []
+class VerificationPipeline:
 
-    # ==========================================
-    # SCORE ALL EVIDENCE
-    # ==========================================
+    def __init__(self):
 
-    for evidence in evidence_list:
+        pass
 
-        scored = compute_evidence_score(
+    # =================================================
+    # RUN PIPELINE
+    # =================================================
+
+    def run(
+        self,
+        claim
+    ):
+
+        # =============================================
+        # BASIC DECOMPOSITION PLACEHOLDER
+        # =============================================
+
+        decomposition = {
+
+            "entities": [],
+
+            "noun_chunks": [],
+
+            "actions": []
+        }
+
+        # =============================================
+        # QUERY GENERATION
+        # =============================================
+
+        queries = build_search_queries(
+
+            claim,
+
+            decomposition
+        )
+
+        # =============================================
+        # RETRIEVAL
+        # =============================================
+
+        retrieval_result = retrieve_evidence(
+
+            claim=claim,
+
+            queries=queries
+        )
+
+        evidence = retrieval_result.get(
+            "evidence",
+            []
+        )
+
+        # =============================================
+        # VERDICT AGGREGATION
+        # =============================================
+
+        verdict_result = aggregate_verdicts(
 
             claim,
 
             evidence
         )
 
-        # ======================================
-        # QUALITY FILTERING
-        # ======================================
+        # =============================================
+        # BUILD STATE OBJECT
+        # =============================================
 
-        weak_alignment = (
-            scored.alignment_score < 0.35
-        )
+        state = SimpleNamespace(
 
-        weak_fact_match = (
-            scored.fact_score < 5
-        )
+            claim=claim,
 
-        weak_rerank = (
-            scored.reranker_score < 1
-        )
+            retrieval_queries=queries,
 
-        weak_content = (
-            len(scored.content.split()) < 10
-        )
+            ranked_evidence=evidence,
 
-        # --------------------------------------
-        # DROP VERY WEAK EVIDENCE
-        # --------------------------------------
+            nli_results=evidence,
 
-        if (
-            weak_alignment
-            or
-            weak_fact_match
-            or
-            weak_rerank
-            or
-            weak_content
-        ):
-            continue
+            final_verdict=verdict_result.get(
+                "verdict",
+                "NEUTRAL"
+            ),
 
-        scored_evidence.append(
-            scored
-        )
+            confidence_score=verdict_result.get(
+                "confidence",
+                0.0
+            ),
 
-    # ==========================================
-    # SAFETY CHECK
-    # ==========================================
+            decomposition=decomposition,
 
-    if not scored_evidence:
+            claim_frame=None,
 
-        return {
+            entities=decomposition.get(
+                "entities",
+                []
+            ),
 
-            "verdict": "NEUTRAL",
+            stage_logs=retrieval_result.get(
+                "stage_logs",
+                []
+            ),
 
-            "confidence": 0.0,
+            engines_used=retrieval_result.get(
+                "engines_used",
+                []
+            ),
 
-            "top_evidence": None,
-
-            "margin": 0
-        }
-
-    # ==========================================
-    # SORT BY FINAL SCORE
-    # ==========================================
-
-    scored_evidence.sort(
-
-        key=lambda x: x.final_score,
-
-        reverse=True
-    )
-
-    # ==========================================
-    # CONSENSUS ANALYSIS
-    # ==========================================
-
-    consensus = compute_consensus(
-        scored_evidence[:10]
-    )
-
-    # ==========================================
-    # TOP EVIDENCE
-    # ==========================================
-
-    top = scored_evidence[0]
-
-    # ==========================================
-    # LABEL COUNTS
-    # ==========================================
-
-    entailment_count = 0
-
-    contradiction_count = 0
-
-    neutral_count = 0
-
-    # ==========================================
-    # WEIGHTED LABEL SCORES
-    # ==========================================
-
-    entailment_score = 0
-
-    contradiction_score = 0
-
-    neutral_score = 0
-
-    # ==========================================
-    # TRUSTED EVIDENCE ONLY
-    # ==========================================
-
-    trusted_evidence = []
-
-    for evidence in scored_evidence[:5]:
-
-        if (
-
-            evidence.final_score >= 20
-
-            and
-
-            evidence.alignment_score >= 0.45
-
-        ):
-
-            trusted_evidence.append(
-                evidence
+            consensus=verdict_result.get(
+                "consensus",
+                {}
             )
-
-    # ==========================================
-    # LABEL ANALYSIS
-    # ==========================================
-
-    for evidence in trusted_evidence:
-
-        if evidence.nli_label == "ENTAILMENT":
-
-            entailment_count += 1
-
-            entailment_score += (
-                evidence.final_score
-            )
-
-        elif evidence.nli_label == "CONTRADICTION":
-
-            contradiction_count += 1
-
-            contradiction_score += (
-                evidence.final_score
-            )
-
-        else:
-
-            neutral_count += 1
-
-            neutral_score += (
-                evidence.final_score
-            )
-
-    # ==========================================
-    # WEIGHTED VOTING
-    # ==========================================
-
-    label_scores = {
-
-        "ENTAILMENT": entailment_score,
-
-        "NEUTRAL": neutral_score,
-
-        "CONTRADICTION": contradiction_score
-    }
-
-    weighted_winner = max(
-
-        label_scores,
-
-        key=label_scores.get
-    )
-
-    # ==========================================
-    # DOMINANCE MARGIN
-    # ==========================================
-
-    second_score = 0
-
-    if len(scored_evidence) > 1:
-
-        second_score = (
-            scored_evidence[1]
-            .final_score
         )
 
-    margin = (
-        top.final_score
-        -
-        second_score
-    )
+        # =============================================
+        # REPORT GENERATION
+        # =============================================
 
-    # ==========================================
-    # INITIAL LABEL
-    # ==========================================
-
-    verdict = weighted_winner
-
-    # ==========================================
-    # STRONG ENTAILMENT OVERRIDE
-    # ==========================================
-
-    strong_entailments = [
-
-        e for e in trusted_evidence
-
-        if (
-
-            e.nli_label == "ENTAILMENT"
-
-            and
-
-            e.final_score >= 30
-
-            and
-
-            e.alignment_score >= 0.60
-
-            and
-
-            e.fact_score >= 10
+        report = build_report(
+            state
         )
-    ]
 
-    if len(strong_entailments) >= 1:
+        state.final_report = report
 
-        verdict = "ENTAILMENT"
+        # =============================================
+        # RETURN
+        # =============================================
 
-    # ==========================================
-    # STRONG CONTRADICTION OVERRIDE
-    # ==========================================
-
-    strong_contradictions = [
-
-        e for e in trusted_evidence
-
-        if (
-
-            e.nli_label == "CONTRADICTION"
-
-            and
-
-            e.final_score >= 30
-
-            and
-
-            e.alignment_score >= 0.60
-
-            and
-
-            e.fact_score >= 10
-        )
-    ]
-
-    if len(strong_contradictions) >= 1:
-
-        verdict = "CONTRADICTION"
-
-    # ==========================================
-    # FALLBACK MAJORITY LOGIC
-    # ==========================================
-
-    if verdict == "NEUTRAL":
-
-        if entailment_count >= 2:
-
-            verdict = "ENTAILMENT"
-
-        elif contradiction_count >= 2:
-
-            verdict = "CONTRADICTION"
-
-    # ==========================================
-    # HIGH CONFIDENCE OVERRIDE
-    # ==========================================
-
-    if (
-
-        top.nli_label == "ENTAILMENT"
-
-        and
-
-        top.final_score >= 35
-
-        and
-
-        top.alignment_score >= 0.65
-
-        and
-
-        top.fact_score >= 12
-
-    ):
-
-        verdict = "ENTAILMENT"
-
-    # ==========================================
-    # CONFIDENCE
-    # ==========================================
-
-    confidence = min(
-
-        1.0,
-
-        (
-            (
-                top.final_score
-                /
-                40
-            )
-            * 0.5
-            +
-            consensus["strength"]
-            * 0.3
-            +
-            (
-                label_scores.get(
-                    verdict,
-                    0
-                )
-                /
-                100
-            )
-            * 0.2
-        )
-    )
-
-    # ==========================================
-    # RETURN
-    # ==========================================
-
-    return {
-
-        "verdict": verdict,
-
-        "confidence": confidence,
-
-        "top_evidence": top,
-
-        "margin": margin,
-
-        "consensus": consensus,
-
-        "label_scores": label_scores,
-
-        "trusted_evidence_count": len(
-            trusted_evidence
-        )
-    }
+        return state
