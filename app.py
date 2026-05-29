@@ -18,7 +18,8 @@ def main():
     # ==========================================
     print("\nDECOMPOSITION:")
     print(result.decomposition)
-
+    print("\nCLAIM FRAME:")
+    print(result.claim_frame)
     print("\nENTITIES:")
     print(result.entities)
 

@@ -7,6 +7,51 @@ nlp = spacy.load(
     "en_core_web_sm"
 )
 
+# ==========================================
+# BAD ENTITY TERMS
+# ==========================================
+
+BAD_ENTITY_TERMS = {
+
+    "conduct",
+    "conducted",
+
+    "host",
+    "hosts",
+    "hosted",
+    "hosting",
+
+    "organize",
+    "organized",
+    "organised",
+
+    "hold",
+    "holds",
+    "held"
+}
+
+
+def clean_entity_text(text):
+
+    text = text.strip().lower()
+
+    tokens = text.split()
+
+    filtered_tokens = [
+
+        token
+
+        for token in tokens
+
+        if token not in BAD_ENTITY_TERMS
+    ]
+
+    cleaned = " ".join(
+        filtered_tokens
+    )
+
+    return cleaned
+
 
 def decompose_claim(claim):
 
@@ -30,10 +75,18 @@ def decompose_claim(claim):
 
     for ent in doc.ents:
 
-        entities.append({
-            "text": ent.text,
-            "label": ent.label_
-        })
+        cleaned_text = clean_entity_text(
+            ent.text
+        )
+
+        if cleaned_text:
+
+            entities.append({
+
+                "text": cleaned_text,
+
+                "label": ent.label_
+            })
 
     # ==========================================
     # TOKENS
@@ -41,17 +94,39 @@ def decompose_claim(claim):
 
     for token in doc:
 
-        if token.pos_ == "VERB":
+        # --------------------------------------
+        # ACTIONS
+        # --------------------------------------
 
-            actions.append(token.lemma_)
+        if token.pos_ in ["VERB", "AUX"]:
 
-        if token.pos_ in ["NOUN", "PROPN"]:
+            actions.append(
+                token.text.lower()
+            )
 
-            nouns.append(token.text)
+        # --------------------------------------
+        # NOUNS
+        # --------------------------------------
+
+        if token.pos_ in [
+
+            "NOUN",
+            "PROPN"
+        ]:
+
+            nouns.append(
+                token.text.lower()
+            )
+
+        # --------------------------------------
+        # NUMBERS
+        # --------------------------------------
 
         if token.like_num:
 
-            numbers.append(token.text)
+            numbers.append(
+                token.text.lower()
+            )
 
     # ==========================================
     # NOUN CHUNKS
@@ -59,8 +134,10 @@ def decompose_claim(claim):
 
     for chunk in doc.noun_chunks:
 
+        cleaned_chunk = chunk.text.lower()
+
         noun_chunks.append(
-            chunk.text
+            cleaned_chunk
         )
 
     # ==========================================
@@ -68,11 +145,29 @@ def decompose_claim(claim):
     # ==========================================
 
     date_patterns = re.findall(
+
         r"\b\d{4}\b",
+
         claim
     )
 
     dates.extend(date_patterns)
+
+    # ==========================================
+    # REMOVE DUPLICATES
+    # ==========================================
+
+    actions = list(set(actions))
+
+    nouns = list(set(nouns))
+
+    numbers = list(set(numbers))
+
+    noun_chunks = list(set(noun_chunks))
+
+    # ==========================================
+    # RETURN
+    # ==========================================
 
     return {
 

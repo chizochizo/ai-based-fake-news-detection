@@ -28,6 +28,23 @@ def aggregate_verdicts(
         )
 
     # ==========================================
+    # SAFETY CHECK
+    # ==========================================
+
+    if not scored_evidence:
+
+        return {
+
+            "verdict": "NEUTRAL",
+
+            "confidence": 0.0,
+
+            "top_evidence": None,
+
+            "margin": 0
+        }
+
+    # ==========================================
     # SORT BY FINAL SCORE
     # ==========================================
 
@@ -43,6 +60,30 @@ def aggregate_verdicts(
     # ==========================================
 
     top = scored_evidence[0]
+
+    # ==========================================
+    # LABEL COUNTS
+    # ==========================================
+
+    entailment_count = 0
+
+    contradiction_count = 0
+
+    neutral_count = 0
+
+    for evidence in scored_evidence[:5]:
+
+        if evidence.nli_label == "ENTAILMENT":
+
+            entailment_count += 1
+
+        elif evidence.nli_label == "CONTRADICTION":
+
+            contradiction_count += 1
+
+        else:
+
+            neutral_count += 1
 
     # ==========================================
     # DOMINANCE MARGIN
@@ -64,13 +105,49 @@ def aggregate_verdicts(
     )
 
     # ==========================================
-    # LABEL DECISION
+    # INITIAL LABEL
     # ==========================================
 
     verdict = top.nli_label
 
     # ==========================================
-    # OVERRIDE RULES
+    # STRONG ENTAILMENT RULE
+    # ==========================================
+
+    if (
+
+        entailment_count >= 2
+
+        and
+
+        top.alignment_score > 0.60
+
+        and
+
+        top.fact_score > 10
+
+    ):
+
+        verdict = "ENTAILMENT"
+
+    # ==========================================
+    # STRONG CONTRADICTION RULE
+    # ==========================================
+
+    if (
+
+        contradiction_count >= 2
+
+        and
+
+        top.alignment_score > 0.60
+
+    ):
+
+        verdict = "CONTRADICTION"
+
+    # ==========================================
+    # OVERRIDE NEUTRAL
     # ==========================================
 
     if (
@@ -83,7 +160,7 @@ def aggregate_verdicts(
 
         and
 
-        top.fact_score > 15
+        top.fact_score > 12
 
     ):
 
@@ -106,6 +183,10 @@ def aggregate_verdicts(
         )
 
     )
+
+    # ==========================================
+    # RETURN
+    # ==========================================
 
     return {
 
