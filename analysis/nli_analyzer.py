@@ -78,9 +78,9 @@ def clean_evidence_text(text):
     # HARD TRUNCATION
     # ==========================================
 
-    if len(text) > 1200:
+    if len(text) > 800:
 
-        text = text[:1800]
+        text = text[:800]
 
     return text
 
@@ -138,7 +138,7 @@ def extract_focus_sentence(
     ]
     if not selected:
 
-        return evidence_text[:1000]
+        return evidence_text[:400]
 
     return ". ".join(
         selected
@@ -283,13 +283,14 @@ def analyze_claim_evidence(
             # FINAL NLI INPUT
             # ==========================================
 
-            premise = focused_evidence
+            premise = focused_evidence[:500]
 
             hypothesis = normalized_claim
 
             print("\n[NLI INPUT]")
             print("HYPOTHESIS:", hypothesis)
-            print("PREMISE:", premise)
+            print("PREMISE:", premise[:200])
+            print("PREMISE LENGTH", len(premise))
 
             # ==========================================
             # RUN NLI
@@ -358,6 +359,13 @@ def analyze_claim_evidence(
                 "CALIBRATED LABEL:",
                 calibrated_label
             )
+            
+            print("\n[NLI CALIBRATION CHECK]")
+            print("RAW:", raw_label)
+            print("CONF:", confidence)
+            print("FACT SCORE:", fact_score)
+            print("ALIGNMENT:", alignment_score)
+            print("FINAL:", calibrated_label)
 
             evidence.nli_label = calibrated_label
 

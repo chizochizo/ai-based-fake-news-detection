@@ -19,7 +19,9 @@ def rerank_evidence(
             claim,
             evidence.content
         ])
-
+    print(
+        f"[RERANKING] {len(evidence_list)} items"
+    )
     scores = reranker.predict(
         pairs
     )

@@ -5,11 +5,7 @@ FILE: .\app.py
 ================================================================================
 
 import gradio as gr
-
-from orchestrator.pipeline_controller import (
-    VerificationPipeline
-)
-
+from orchestrator.pipeline_controller import VerificationPipeline
 
 # =====================================================
 # INITIALIZE PIPELINE
@@ -23,9 +19,7 @@ pipeline = VerificationPipeline()
 # =====================================================
 
 def verify_claim(claim):
-
     if not claim.strip():
-
         return (
             "Please enter a claim.",
             "",
@@ -36,18 +30,15 @@ def verify_claim(claim):
         )
 
     try:
-
         result = pipeline.run(claim)
 
         # ==========================================
         # FINAL VERDICT
         # ==========================================
-
         verdict = (
             f"### FINAL VERDICT\n\n"
             f"**{result.final_verdict}**\n\n"
-            f"Confidence: "
-            f"{round(result.confidence_score, 3)}\n\n"
+            f"Confidence: {round(result.confidence_score, 3)}\n\n"
             f"## Explanation\n\n"
             f"{result.verdict_explanation}"
         )
@@ -55,123 +46,66 @@ def verify_claim(claim):
         # ==========================================
         # REPORT
         # ==========================================
-
         report = result.final_report
 
         # ==========================================
         # QUERIES
         # ==========================================
-
-        queries = "\n".join(
-            result.retrieval_queries
-        )
+        queries = "\n".join(result.retrieval_queries)
 
         # ==========================================
         # TOP EVIDENCE
         # ==========================================
-
         evidence_output = ""
-
-        for idx, evidence in enumerate(
-            result.ranked_evidence[:5],
-            start=1
-        ):
-
+        for idx, evidence in enumerate(result.ranked_evidence[:5], start=1):
             evidence_output += (
                 f"## Evidence {idx}\n\n"
-
-                f"### Title\n"
-                f"{evidence.title}\n\n"
-
-                f"### Content\n"
-                f"{evidence.content}\n\n"
-
-                f"### Source\n"
-                f"{evidence.source_url}\n\n"
-
+                f"### Title\n{evidence.title}\n\n"
+                f"### Content\n{evidence.content}\n\n"
+                f"### Source\n{evidence.source_url}\n\n"
                 f"### Scores\n"
-                f"- Reranker: "
-                f"{round(getattr(evidence, 'reranker_score', 0), 3)}\n"
-
-                f"- Alignment: "
-                f"{round(getattr(evidence, 'alignment_score', 0), 3)}\n"
-
-                f"- Fact Score: "
-                f"{round(getattr(evidence, 'fact_score', 0), 3)}\n"
-
-                f"- Final Score: "
-                f"{round(getattr(evidence, 'final_score', 0), 3)}\n\n"
-
+                f"- Reranker: {round(getattr(evidence, 'reranker_score', 0), 3)}\n"
+                f"- Alignment: {round(getattr(evidence, 'alignment_score', 0), 3)}\n"
+                f"- Fact Score: {round(getattr(evidence, 'fact_score', 0), 3)}\n"
+                f"- Final Score: {round(getattr(evidence, 'final_score', 0), 3)}\n\n"
                 f"{'-'*60}\n\n"
             )
 
         # ==========================================
         # NLI ANALYSIS
         # ==========================================
-
         nli_output = ""
-
-        for idx, evidence in enumerate(
-            result.nli_results[:5],
-            start=1
-        ):
-
+        for idx, evidence in enumerate(result.nli_results[:5], start=1):
             nli_output += (
                 f"## NLI Result {idx}\n\n"
-
-                f"### Label\n"
-                f"{evidence.nli_label}\n\n"
-
-                f"### Confidence\n"
-                f"{round(evidence.nli_confidence, 3)}\n\n"
-
-                f"### Alignment\n"
-                f"{round(getattr(evidence, 'alignment_score', 0), 3)}\n\n"
-
-                f"### Fact Score\n"
-                f"{round(getattr(evidence, 'fact_score', 0), 3)}\n\n"
-
-                f"### Final Score\n"
-                f"{round(getattr(evidence, 'final_score', 0), 3)}\n\n"
-
-                f"### Content\n"
-                f"{evidence.content[:500]}\n\n"
-
+                f"### Label\n{evidence.nli_label}\n\n"
+                f"### Confidence\n{round(evidence.nli_confidence, 3)}\n\n"
+                f"### Alignment\n{round(getattr(evidence, 'alignment_score', 0), 3)}\n\n"
+                f"### Fact Score\n{round(getattr(evidence, 'fact_score', 0), 3)}\n\n"
+                f"### Final Score\n{round(getattr(evidence, 'final_score', 0), 3)}\n\n"
+                f"### Content\n{evidence.content[:500]}\n\n"
                 f"{'-'*60}\n\n"
             )
 
         # ==========================================
         # DEBUG INFO
         # ==========================================
-
         debug_output = (
-            f"## CLAIM FRAME\n\n"
-            f"{result.claim_frame}\n\n"
-
-            f"## DECOMPOSITION\n\n"
-            f"{result.decomposition}\n\n"
-
-            f"## ENTITIES\n\n"
-            f"{result.entities}\n"
+            f"## CLAIM FRAME\n\n{result.claim_frame}\n\n"
+            f"## DECOMPOSITION\n\n{result.decomposition}\n\n"
+            f"## ENTITIES\n\n{result.entities}\n"
         )
 
         return (
-
             verdict,
-
             report,
-
             queries,
-
             evidence_output,
-
             nli_output,
-
             debug_output
         )
 
     except Exception as e:
-
         return (
             f"Error: {str(e)}",
             "",
@@ -186,80 +120,67 @@ def verify_claim(claim):
 # GRADIO UI
 # =====================================================
 
-with gr.Blocks(
-    title="AI Fake News Verification System"
-) as demo:
-
+with gr.Blocks(title="AI Fake News Verification System") as demo:
     gr.Markdown(
         """
-# AI Fake News Verification System
-
-Advanced Retrieval-Augmented Semantic
-Fake News Detection & Verification
-"""
+        # AI Fake News Verification System
+        Advanced Retrieval-Augmented Semantic Fake News Detection & Verification
+        """
     )
 
     with gr.Row():
-
         claim_input = gr.Textbox(
-
             label="Enter Claim",
-
-            placeholder=(
-                "Type a news claim here..."
-            ),
-
+            placeholder="Type a news claim here...",
             lines=4
         )
 
-    verify_button = gr.Button(
-        "Verify Claim"
-    )
+    with gr.Row():
+        verify_button = gr.Button("Chalo")
+        clear_button = gr.Button("Hatai Diwi")
 
     with gr.Tab("Final Verdict"):
-
         verdict_output = gr.Markdown()
 
     with gr.Tab("Verification Report"):
-
         report_output = gr.Markdown()
 
     with gr.Tab("Generated Queries"):
-
-        queries_output = gr.Textbox(
-            lines=10
-        )
+        queries_output = gr.Textbox(lines=10)
 
     with gr.Tab("Top Evidence"):
-
         evidence_output = gr.Markdown()
 
     with gr.Tab("NLI Analysis"):
-
         nli_output = gr.Markdown()
 
     with gr.Tab("Debug Information"):
-
         debug_output = gr.Markdown()
 
+    # Click interactions mapped cleanly inside the context block
     verify_button.click(
-
         fn=verify_claim,
-
         inputs=claim_input,
-
         outputs=[
-
             verdict_output,
-
             report_output,
-
             queries_output,
-
             evidence_output,
-
             nli_output,
+            debug_output
+        ]
+    )
 
+    clear_button.click(
+        fn=lambda: ("", "", "", "", "", "", ""),
+        inputs=[],
+        outputs=[
+            claim_input,
+            verdict_output,
+            report_output,
+            queries_output,
+            evidence_output,
+            nli_output,
             debug_output
         ]
     )
@@ -270,10 +191,7 @@ Fake News Detection & Verification
 # =====================================================
 
 if __name__ == "__main__":
-
-    demo.launch(
-        share=True
-    )
+    demo.launch(share=True)
 
 
 ================================================================================
@@ -1135,6 +1053,17 @@ def compute_evidence_score(
 
         evidence.content
     )
+    print("\n[FACT MATCH DEBUG]")
+    print("CLAIM:", claim)
+    print("TITLE:", evidence.title)
+    print("CONFLICTS:",
+          fact_match.get("conflicts", []))
+
+    print("MATCHES:",
+          fact_match.get("matches", []))
+
+    print("EXTRACTED:",
+          fact_match)
 
     fact_score = fact_match["score"]
 
@@ -1271,211 +1200,108 @@ def compute_evidence_score(
 FILE: .\analysis\fact_matcher.py
 ================================================================================
 
+from datetime import datetime
+import re
 from rapidfuzz import fuzz
 import spacy
-import re
-from datetime import datetime
 
 from analysis.wikidata_utils import (
     entities_match,
+    entity_similarity,
     normalize_entity,
-    entity_similarity
 )
 
-nlp = spacy.load(
-    "en_core_web_sm"
-)
+nlp = spacy.load("en_core_web_sm")
 
 CURRENT_YEAR = datetime.now().year
 
 # =====================================================
 # EVENT KEYWORDS
 # =====================================================
-
 EVENT_TERMS = {
-
-    "programme",
-    "program",
-    "event",
-    "seminar",
-    "conference",
-    "social",
-    "parting",
-    "farewell",
-    "meeting",
-    "summit",
-    "workshop",
-    "festival",
-    "ceremony",
-    "world cup",
-    "tournament",
-    "match",
-    "cup"
+    "programme", "program", "event", "seminar", "conference",
+    "social", "parting", "farewell", "meeting", "summit",
+    "workshop", "festival", "ceremony", "world cup", "tournament",
+    "match", "cup"
 }
 
 # =====================================================
 # ENTITY WEIGHTS
 # =====================================================
-
 ENTITY_WEIGHTS = {
-
     "ORG": 3.0,
-
     "PERSON": 3.0,
-
     "GPE": 4.0,
-
     "LOC": 2.5,
-
     "DATE": 3.5,
-
     "TIME": 2.0,
-
     "CARDINAL": 2.5,
-
     "ORDINAL": 3.0,
-
     "EVENT": 3.5,
-
     "PRODUCT": 2.0
 }
 
 # =====================================================
 # NEGATION TERMS
 # =====================================================
-
 NEGATION_TERMS = {
-
-    "not",
-    "no",
-    "never",
-    "none",
-    "neither",
-    "cancelled",
-    "canceled",
-    "fake",
-    "false",
-    "deny",
-    "denied",
-    "reject",
-    "rejected",
-    "withdrawn",
-    "didn't",
-    "did not",
-    "wasn't",
-    "was not"
+    "not", "no", "never", "none", "neither", "cancelled",
+    "canceled", "fake", "false", "deny", "denied", "reject",
+    "rejected", "withdrawn", "didn't", "did not", "wasn't", "was not"
 }
 
 # =====================================================
 # RECENCY TERMS
 # =====================================================
-
 RECENT_TERMS = {
-
-    "today",
-    "yesterday",
-    "recently",
-    "currently",
-    "now",
-    "breaking",
-    "latest",
-    "this year",
-    "this week",
-    "this month"
+    "today", "yesterday", "recently", "currently", "now",
+    "breaking", "latest", "this year", "this week", "this month"
 }
 
 # =====================================================
 # OLD / HISTORICAL TERMS
 # =====================================================
-
 OLD_TERMS = {
-
-    "previously",
-    "formerly",
-    "historical",
-    "earlier",
-    "past",
-    "old",
-    "archived",
-    "years ago"
+    "previously", "formerly", "historical", "earlier", "past",
+    "old", "archived", "years ago"
 }
 
 # =====================================================
 # ACTION NORMALIZATION
 # =====================================================
-
 ACTION_NORMALIZATION = {
-
     "hosted": "conduct",
     "hosting": "conduct",
-
     "organized": "conduct",
     "organised": "conduct",
-
     "held": "conduct",
-
     "cancelled": "cancel",
     "canceled": "cancel",
-
     "postponed": "postpone",
-
     "won": "win",
     "wins": "win",
     "winning": "win",
-
     "lost": "lose",
     "loses": "lose",
-
     "completed": "complete",
     "completes": "complete",
-
     "finished": "complete",
-
     "conducted": "conduct",
-
     "launched": "launch",
-
     "announced": "announce"
 }
 
 # =====================================================
 # ACTION CONTRADICTIONS
 # =====================================================
-
 CONTRADICTION_ACTIONS = {
-
-    "launch": [
-        "cancel",
-        "withdraw"
-    ],
-
-    "conduct": [
-        "cancel",
-        "postpone"
-    ],
-
-    "announce": [
-        "deny",
-        "reject"
-    ],
-
-    "win": [
-        "lose"
-    ],
-
-    "lose": [
-        "win"
-    ],
-
-    "approve": [
-        "reject",
-        "deny"
-    ],
-
-    "complete": [
-        "cancel",
-        "postpone"
-    ]
+    "launch": ["cancel", "withdraw"],
+    "conduct": ["cancel", "postpone"],
+    "announce": ["deny", "reject"],
+    "win": ["lose"],
+    "lose": ["win"],
+    "approve": ["reject", "deny"],
+    "complete": ["cancel", "postpone"]
 }
 
 
@@ -1483,48 +1309,25 @@ CONTRADICTION_ACTIONS = {
 # HELPERS
 # =====================================================
 
-def entity_overlap_score(
-    ids_a,
-    ids_b
-):
-
+def entity_overlap_score(ids_a, ids_b):
     if not ids_a or not ids_b:
-
         return 0
-
     overlap = set(ids_a) & set(ids_b)
-
     return len(overlap)
 
 
 def normalize_action(action):
-
     action = action.lower()
-
-    return ACTION_NORMALIZATION.get(
-        action,
-        action
-    )
+    return ACTION_NORMALIZATION.get(action, action)
 
 
 def extract_negations(doc):
-
     negations = []
-
     for token in doc:
-
         if token.dep_ == "neg":
-
-            negations.append(
-                token.text.lower()
-            )
-
+            negations.append(token.text.lower())
         elif token.text.lower() in NEGATION_TERMS:
-
-            negations.append(
-                token.text.lower()
-            )
-
+            negations.append(token.text.lower())
     return list(set(negations))
 
 
@@ -1533,17 +1336,11 @@ def extract_negations(doc):
 # =====================================================
 
 def extract_recency_terms(text):
-
     text = text.lower()
-
     found = []
-
     for term in RECENT_TERMS:
-
         if term in text:
-
             found.append(term)
-
     return found
 
 
@@ -1552,17 +1349,11 @@ def extract_recency_terms(text):
 # =====================================================
 
 def extract_old_terms(text):
-
     text = text.lower()
-
     found = []
-
     for term in OLD_TERMS:
-
         if term in text:
-
             found.append(term)
-
     return found
 
 
@@ -1571,34 +1362,21 @@ def extract_old_terms(text):
 # =====================================================
 
 def extract_years(text):
-
-    return re.findall(
-        r"\b(?:19|20)\d{2}\b",
-        text
-    )
+    return re.findall(r"\b(?:19|20)\d{2}\b", text)
 
 
 # =====================================================
 # ENTITY RESOLUTION PLACEHOLDER
 # =====================================================
 
-def enrich_entities_with_wikidata(
-    entities
-):
-
+def enrich_entities_with_wikidata(entities):
     enriched = []
-
     for ent in entities:
-
         enriched.append({
-
             "text": ent["text"],
-
             "label": ent["label"],
-
             "wikidata_ids": []
         })
-
     return enriched
 
 
@@ -1607,165 +1385,88 @@ def enrich_entities_with_wikidata(
 # =====================================================
 
 def extract_fact_structure(text):
-
     doc = nlp(text)
-
     structure = {
-
         "entities": [],
-
         "numbers": [],
-
         "actions": [],
-
         "event_terms": [],
-
         "noun_chunks": [],
-
         "years": [],
-
         "negations": [],
-
         "recency_terms": [],
-
         "old_terms": []
     }
 
     # ==========================================
     # ENTITIES
     # ==========================================
-
     raw_entities = []
-
     for ent in doc.ents:
-
-        cleaned_text = (
-            ent.text
-            .strip()
-            .lower()
-        )
-
+        cleaned_text = ent.text.strip().lower()
         if len(cleaned_text) > 1:
-
             raw_entities.append({
-
                 "text": cleaned_text,
-
                 "label": ent.label_
             })
-
-    structure["entities"] = (
-        enrich_entities_with_wikidata(
-            raw_entities
-        )
-    )
+    structure["entities"] = enrich_entities_with_wikidata(raw_entities)
 
     # ==========================================
     # NUMBERS
     # ==========================================
-
-    numbers = re.findall(
-        r"\b\d+(?:st|nd|rd|th)?\b",
-        text.lower()
-    )
-
+    numbers = re.findall(r"\b\d+(?:st|nd|rd|th)?\b", text.lower())
     structure["numbers"] = list(set(numbers))
 
     # ==========================================
     # YEARS
     # ==========================================
-
-    structure["years"] = list(set(
-        extract_years(text)
-    ))
+    structure["years"] = list(set(extract_years(text)))
 
     # ==========================================
     # NEGATIONS
     # ==========================================
-
-    structure["negations"] = extract_negations(
-        doc
-    )
+    structure["negations"] = extract_negations(doc)
 
     # ==========================================
     # RECENCY TERMS
     # ==========================================
-
-    structure["recency_terms"] = (
-        extract_recency_terms(text)
-    )
+    structure["recency_terms"] = extract_recency_terms(text)
 
     # ==========================================
     # OLD TERMS
     # ==========================================
-
-    structure["old_terms"] = (
-        extract_old_terms(text)
-    )
+    structure["old_terms"] = extract_old_terms(text)
 
     # ==========================================
     # ACTIONS
     # ==========================================
-
     actions = []
-
     for token in doc:
-
         if token.pos_ in ["VERB", "AUX"]:
-
-            normalized = normalize_action(
-                token.lemma_.lower()
-            )
-
+            normalized = normalize_action(token.lemma_.lower())
             if len(normalized) > 2:
-
-                actions.append(
-                    normalized
-                )
-
+                actions.append(normalized)
     structure["actions"] = list(set(actions))
 
     # ==========================================
     # EVENT TERMS
     # ==========================================
-
     event_terms = []
-
     text_lower = text.lower()
-
     for event in EVENT_TERMS:
-
         if event in text_lower:
-
             event_terms.append(event)
-
-    structure["event_terms"] = list(set(
-        event_terms
-    ))
+    structure["event_terms"] = list(set(event_terms))
 
     # ==========================================
     # NOUN CHUNKS
     # ==========================================
-
     noun_chunks = []
-
     for chunk in doc.noun_chunks:
-
-        cleaned = (
-            chunk.text
-            .strip()
-            .lower()
-        )
-
+        cleaned = chunk.text.strip().lower()
         if len(cleaned) > 2:
-
-            noun_chunks.append(
-                cleaned
-            )
-
-    structure["noun_chunks"] = list(set(
-        noun_chunks
-    ))
+            noun_chunks.append(cleaned)
+    structure["noun_chunks"] = list(set(noun_chunks))
 
     return structure
 
@@ -1774,51 +1475,26 @@ def extract_fact_structure(text):
 # ENTITY OVERLAP
 # =====================================================
 
-def has_entity_overlap(
-    claim_entities,
-    evidence_entities
-):
-
+def has_entity_overlap(claim_entities, evidence_entities):
     for claim_ent in claim_entities:
-
         for evidence_ent in evidence_entities:
-
             # ----------------------------------
             # WIKIDATA MATCH
             # ----------------------------------
-
             wikidata_score = entity_overlap_score(
-
-                claim_ent.get(
-                    "wikidata_ids",
-                    []
-                ),
-
-                evidence_ent.get(
-                    "wikidata_ids",
-                    []
-                )
+                claim_ent.get("wikidata_ids", []),
+                evidence_ent.get("wikidata_ids", [])
             )
-
             if wikidata_score > 0:
-
                 return True
 
             # ----------------------------------
             # FUZZY MATCH
             # ----------------------------------
-
             similarity = fuzz.token_sort_ratio(
-
-                claim_ent["text"],
-
-                evidence_ent["text"]
-            )
-
+                claim_ent["text"], evidence_ent["text"])
             if similarity >= 80:
-
                 return True
-
     return False
 
 
@@ -1826,53 +1502,27 @@ def has_entity_overlap(
 # CONTEXTUAL RECENCY CHECK
 # =====================================================
 
-def detect_contextual_conflicts(
-    claim_struct,
-    evidence_struct
-):
-
+def detect_contextual_conflicts(claim_struct, evidence_struct):
     conflicts = []
-
-    claim_recent = bool(
-        claim_struct["recency_terms"]
-    )
-
-    evidence_old = bool(
-        evidence_struct["old_terms"]
-    )
-
-    evidence_years = evidence_struct[
-        "years"
-    ]
+    claim_recent = bool(claim_struct["recency_terms"])
+    evidence_old = bool(evidence_struct["old_terms"])
+    evidence_years = evidence_struct["years"]
 
     # ==========================================
     # OLD CONTENT FRAMED AS CURRENT
     # ==========================================
-
     if claim_recent and evidence_old:
-
-        conflicts.append(
-            "stale_context_conflict"
-        )
+        conflicts.append("stale_context_conflict")
 
     # ==========================================
     # RECYCLED NEWS CHECK
     # ==========================================
-
     if claim_recent and evidence_years:
-
         for year in evidence_years:
-
             try:
-
                 age = CURRENT_YEAR - int(year)
-
                 if age >= 2:
-
-                    conflicts.append(
-                        "recycled_news_conflict"
-                    )
-
+                    conflicts.append("recycled_news_conflict")
             except:
                 pass
 
@@ -1883,183 +1533,64 @@ def detect_contextual_conflicts(
 # CONFLICT DETECTION
 # =====================================================
 
-def detect_conflicts(
-    claim_struct,
-    evidence_struct
-):
-
+def detect_conflicts(claim_struct, evidence_struct):
     conflicts = []
-
     entity_related = has_entity_overlap(
-
-        claim_struct["entities"],
-
-        evidence_struct["entities"]
-    )
+        claim_struct["entities"], evidence_struct["entities"])
 
     # ==========================================
     # NUMBER CONFLICTS
     # ==========================================
+    claim_numbers = set(claim_struct["numbers"])
+    evidence_numbers = set(evidence_struct["numbers"])
+    shared_numbers = claim_numbers & evidence_numbers
 
-    claim_numbers = set(
-        claim_struct["numbers"]
-    )
-
-    evidence_numbers = set(
-        evidence_struct["numbers"]
-    )
-
-    shared_numbers = (
-        claim_numbers
-        &
-        evidence_numbers
-    )
-
-    if (
-
-        claim_numbers
-
-        and
-
-        evidence_numbers
-
-        and
-
-        not shared_numbers
-
-    ):
-
-        if (
-
-            len(claim_numbers) <= 2
-
-            and
-
-            len(evidence_numbers) <= 2
-        ):
-
-            conflicts.append(
-                "number_conflict"
-            )
+    if claim_numbers and evidence_numbers and not shared_numbers:
+        if len(claim_numbers) <= 2 and len(evidence_numbers) <= 2:
+            conflicts.append("number_conflict")
 
     # ==========================================
     # YEAR CONFLICTS
     # ==========================================
+    claim_years = set(claim_struct["years"])
+    evidence_years = set(evidence_struct["years"])
+    shared_years = claim_years & evidence_years
 
-    claim_years = set(
-        claim_struct["years"]
-    )
-
-    evidence_years = set(
-        evidence_struct["years"]
-    )
-
-    shared_years = (
-        claim_years
-        &
-        evidence_years
-    )
-
-    if (
-
-        claim_years
-
-        and
-
-        evidence_years
-
-        and
-
-        not shared_years
-
-    ):
-
+    if claim_years and evidence_years and not shared_years:
         try:
-
-            claim_year = max(
-                int(y)
-                for y in claim_years
-            )
-
-            evidence_year = max(
-                int(y)
-                for y in evidence_years
-            )
-
-            if abs(
-                claim_year
-                -
-                evidence_year
-            ) >= 2:
-
-                conflicts.append(
-                    "year_conflict"
-                )
-
+            claim_year = max(int(y) for y in claim_years)
+            evidence_year = max(int(y) for y in evidence_years)
+            if abs(claim_year - evidence_year) >= 2:
+                conflicts.append("year_conflict")
         except:
             pass
 
     # ==========================================
     # ACTION CONFLICTS
     # ==========================================
-
     if entity_related:
-
-        for claim_action in claim_struct[
-            "actions"
-        ]:
-
-            opposite_actions = (
-                CONTRADICTION_ACTIONS.get(
-                    claim_action,
-                    []
-                )
-            )
-
-            for evidence_action in evidence_struct[
-                "actions"
-            ]:
-
+        for claim_action in claim_struct["actions"]:
+            opposite_actions = CONTRADICTION_ACTIONS.get(claim_action, [])
+            for evidence_action in evidence_struct["actions"]:
                 if evidence_action in opposite_actions:
-
-                    conflicts.append(
-                        "action_conflict"
-                    )
+                    conflicts.append("action_conflict")
 
     # ==========================================
     # NEGATION CONFLICTS
     # ==========================================
-
-    claim_has_negation = bool(
-        claim_struct["negations"]
-    )
-
-    evidence_has_negation = bool(
-        evidence_struct["negations"]
-    )
+    claim_has_negation = bool(claim_struct["negations"])
+    evidence_has_negation = bool(evidence_struct["negations"])
 
     if claim_has_negation != evidence_has_negation:
-
         if entity_related:
-
-            conflicts.append(
-                "negation_conflict"
-            )
+            conflicts.append("negation_conflict")
 
     # ==========================================
     # CONTEXTUAL CONFLICTS
     # ==========================================
-
-    contextual_conflicts = (
-        detect_contextual_conflicts(
-            claim_struct,
-            evidence_struct
-        )
-    )
-
-    conflicts.extend(
-        contextual_conflicts
-    )
+    contextual_conflicts = detect_contextual_conflicts(
+        claim_struct, evidence_struct)
+    conflicts.extend(contextual_conflicts)
 
     return list(set(conflicts))
 
@@ -2068,124 +1599,57 @@ def detect_conflicts(
 # FACT STRUCTURE COMPARISON
 # =====================================================
 
-def compare_fact_structure(
-    claim,
-    evidence
-):
-
-    claim_struct = (
-        extract_fact_structure(claim)
-    )
-
-    evidence_struct = (
-        extract_fact_structure(evidence)
-    )
-
+def compare_fact_structure(claim, evidence):
+    claim_struct = extract_fact_structure(claim)
+    evidence_struct = extract_fact_structure(evidence)
     score = 0
 
     # =================================================
     # ENTITY MATCHING
     # =================================================
-
     entity_score = 0
-
     matched_pairs = set()
 
     for claim_ent in claim_struct["entities"]:
-
         for evidence_ent in evidence_struct["entities"]:
-
-            pair_key = (
-
-                claim_ent["text"],
-                evidence_ent["text"]
-            )
-
+            pair_key = (claim_ent["text"], evidence_ent["text"])
             if pair_key in matched_pairs:
-
                 continue
-
-            matched_pairs.add(
-                pair_key
-            )
+            matched_pairs.add(pair_key)
 
             # -----------------------------------------
             # WIKIDATA ENTITY BOOST
             # -----------------------------------------
-
             wikidata_score = entity_overlap_score(
-
-                claim_ent.get(
-                    "wikidata_ids",
-                    []
-                ),
-
-                evidence_ent.get(
-                    "wikidata_ids",
-                    []
-                )
+                claim_ent.get("wikidata_ids", []),
+                evidence_ent.get("wikidata_ids", [])
             )
-
             if wikidata_score > 0:
-
                 entity_score += 5
-
                 continue
 
             # -----------------------------------------
             # FUZZY ENTITY MATCH
             # -----------------------------------------
-
             similarity = fuzz.token_sort_ratio(
-
-                claim_ent["text"],
-
-                evidence_ent["text"]
-            )
-
+                claim_ent["text"], evidence_ent["text"])
             if similarity >= 80:
-
-                weight = ENTITY_WEIGHTS.get(
-
-                    claim_ent["label"],
-
-                    1.5
-                )
-
-                if (
-                    claim_ent["label"]
-                    ==
-                    evidence_ent["label"]
-                ):
-
+                weight = ENTITY_WEIGHTS.get(claim_ent["label"], 1.5)
+                if claim_ent["label"] == evidence_ent["label"]:
                     entity_score += weight
-
                 else:
-
-                    entity_score += (
-                        weight * 0.5
-                    )
+                    entity_score += (weight * 0.5)
 
     score += entity_score
 
     # =================================================
     # ACTION MATCHING
     # =================================================
-
     action_overlap = 0
-
     for claim_action in claim_struct["actions"]:
-
         for evidence_action in evidence_struct["actions"]:
-
-            similarity = fuzz.ratio(
-
-                claim_action,
-                evidence_action
-            )
-
+            similarity = fuzz.ratio(claim_action, evidence_action)
             if similarity >= 85:
-
                 action_overlap += 1
 
     score += action_overlap * 3
@@ -2193,236 +1657,112 @@ def compare_fact_structure(
     # =================================================
     # EVENT TERM MATCHING
     # =================================================
-
-    event_overlap = len(
-
-        set(claim_struct["event_terms"])
-        &
-        set(evidence_struct["event_terms"])
-
-    )
-
+    event_overlap = len(set(claim_struct["event_terms"]) & set(
+        evidence_struct["event_terms"]))
     score += event_overlap * 4
 
     # =================================================
     # NUMBER MATCHING
     # =================================================
-
-    claim_numbers = set(
-        claim_struct["numbers"]
-    )
-
-    evidence_numbers = set(
-        evidence_struct["numbers"]
-    )
+    claim_numbers = set(claim_struct["numbers"])
+    evidence_numbers = set(evidence_struct["numbers"])
 
     if claim_numbers:
-
         if claim_numbers & evidence_numbers:
-
             score += 3
-
-        else:
-
-            if len(claim_numbers) <= 2:
-
-                score -= 1
+        elif len(claim_numbers) <= 2:
+            score -= 1
 
     # =================================================
     # YEAR MATCHING
     # =================================================
-
-    claim_years = set(
-        claim_struct["years"]
-    )
-
-    evidence_years = set(
-        evidence_struct["years"]
-    )
+    claim_years = set(claim_struct["years"])
+    evidence_years = set(evidence_struct["years"])
 
     if claim_years:
-
         if claim_years & evidence_years:
-
             score += 5
-
         else:
-
             try:
-
-                claim_year = max(
-                    int(y)
-                    for y in claim_years
-                )
-
-                evidence_year = max(
-                    int(y)
-                    for y in evidence_years
-                )
-
-                if abs(
-                    claim_year
-                    -
-                    evidence_year
-                ) >= 2:
-
+                claim_year = max(int(y) for y in claim_years)
+                evidence_year = max(int(y) for y in evidence_years)
+                if abs(claim_year - evidence_year) >= 2:
                     score -= 5
-
             except:
                 pass
 
     # =================================================
     # NOUN CHUNK MATCH
     # =================================================
-
     best_chunk_score = 0
-
-    for claim_chunk in claim_struct[
-        "noun_chunks"
-    ]:
-
-        for evidence_chunk in evidence_struct[
-            "noun_chunks"
-        ]:
-
+    for claim_chunk in claim_struct["noun_chunks"]:
+        for evidence_chunk in evidence_struct["noun_chunks"]:
             similarity = fuzz.token_sort_ratio(
-
-                claim_chunk,
-
-                evidence_chunk
-
-            ) / 100.0
-
+                claim_chunk, evidence_chunk) / 100.0
             if similarity > best_chunk_score:
-
                 best_chunk_score = similarity
 
-    if (
-        action_overlap > 0
-        or
-        event_overlap > 0
-        or
-        entity_score > 3
-    ):
-
+    if action_overlap > 0 or event_overlap > 0 or entity_score > 3:
         score += best_chunk_score * 4
 
     # =================================================
     # SPECIAL SPORTS / EVENT BOOST
     # =================================================
-
-    if (
-
-        claim_struct["years"]
-
-        and
-
-        evidence_struct["years"]
-
-        and
-
-        claim_struct["actions"]
-
-        and
-
-        evidence_struct["actions"]
-
-    ):
-
-        shared_actions = (
-
-            set(claim_struct["actions"])
-            &
-            set(evidence_struct["actions"])
-
-        )
-
+    if claim_struct["years"] and evidence_struct["years"] and claim_struct["actions"] and evidence_struct["actions"]:
+        shared_actions = set(claim_struct["actions"]) & set(
+            evidence_struct["actions"])
         if shared_actions:
-
             score += 4
 
     # =================================================
     # CONFLICT DETECTION
     # =================================================
+    conflicts = detect_conflicts(claim_struct, evidence_struct)
 
-    conflicts = detect_conflicts(
-
-        claim_struct,
-
-        evidence_struct
-    )
+    # Properly nested debug blocks inside the function
+    print("\n[DETECT CONFLICTS DEBUG]")
+    print("CLAIM YEARS:", claim_struct["years"])
+    print("EVIDENCE YEARS:", evidence_struct["years"])
+    print("CLAIM NUMBERS:", claim_struct["numbers"])
+    print("EVIDENCE NUMBERS:", evidence_struct["numbers"])
 
     for conflict in conflicts:
-
         if conflict == "action_conflict":
-
             score -= 6
-
         elif conflict == "year_conflict":
-
             score -= 5
-
         elif conflict == "number_conflict":
-
             score -= 3
-
         elif conflict == "negation_conflict":
-
             score -= 8
-
         elif conflict == "recycled_news_conflict":
-
             score -= 5
-
         elif conflict == "stale_context_conflict":
-
             score -= 6
 
     # =================================================
     # RECENCY BONUS
     # =================================================
-
-    if (
-
-        claim_struct["recency_terms"]
-
-        and
-
-        evidence_struct["years"]
-    ):
-
+    if claim_struct["recency_terms"] and evidence_struct["years"]:
         try:
-
-            latest_year = max(
-
-                int(y)
-                for y in evidence_struct["years"]
-            )
-
+            latest_year = max(int(y) for y in evidence_struct["years"])
             if latest_year >= CURRENT_YEAR - 1:
-
                 score += 2
-
         except:
             pass
+
+    print("[CONFLICTS GENERATED]")
+    print(conflicts)
 
     # =================================================
     # RETURN
     # =================================================
-
     return {
-
         "score": round(score, 3),
-
         "claim": claim_struct,
-
         "evidence": evidence_struct,
-
         "conflicts": conflicts,
-
-        "conflict_count": len(
-            conflicts
-        )
+        "conflict_count": len(conflicts)
     }
 
 
@@ -2510,9 +1850,9 @@ def clean_evidence_text(text):
     # HARD TRUNCATION
     # ==========================================
 
-    if len(text) > 1200:
+    if len(text) > 800:
 
-        text = text[:1800]
+        text = text[:800]
 
     return text
 
@@ -2570,7 +1910,7 @@ def extract_focus_sentence(
     ]
     if not selected:
 
-        return evidence_text[:1000]
+        return evidence_text[:400]
 
     return ". ".join(
         selected
@@ -2715,13 +2055,14 @@ def analyze_claim_evidence(
             # FINAL NLI INPUT
             # ==========================================
 
-            premise = focused_evidence
+            premise = focused_evidence[:500]
 
             hypothesis = normalized_claim
 
             print("\n[NLI INPUT]")
             print("HYPOTHESIS:", hypothesis)
-            print("PREMISE:", premise)
+            print("PREMISE:", premise[:200])
+            print("PREMISE LENGTH", len(premise))
 
             # ==========================================
             # RUN NLI
@@ -2790,6 +2131,13 @@ def analyze_claim_evidence(
                 "CALIBRATED LABEL:",
                 calibrated_label
             )
+            
+            print("\n[NLI CALIBRATION CHECK]")
+            print("RAW:", raw_label)
+            print("CONF:", confidence)
+            print("FACT SCORE:", fact_score)
+            print("ALIGNMENT:", alignment_score)
+            print("FINAL:", calibrated_label)
 
             evidence.nli_label = calibrated_label
 
@@ -3284,66 +2632,37 @@ FILE: .\analysis\verdict_aggregator.py
 ================================================================================
 
 from collections import defaultdict
-
-from analysis.evidence_scorer import (
-    compute_evidence_score
-)
-
-from analysis.consensus_engine import (
-    compute_consensus
-)
-
-from analysis.semantic_alignment import (
-    compute_alignment_score
-)
+from analysis.evidence_scorer import compute_evidence_score
+from analysis.consensus_engine import compute_consensus
+from analysis.semantic_alignment import compute_alignment_score
 
 
 # =====================================================
 # EVIDENCE CLUSTERING
 # =====================================================
 
-def cluster_evidence(
-    evidence_list,
-    threshold=0.72
-):
-
+def cluster_evidence(evidence_list, threshold=0.72):
     clusters = []
-
     used = set()
 
-    for i, evidence_a in enumerate(
-        evidence_list
-    ):
-
+    for i, evidence_a in enumerate(evidence_list):
         if i in used:
-
             continue
 
         cluster = [evidence_a]
-
         used.add(i)
 
-        for j, evidence_b in enumerate(
-            evidence_list
-        ):
-
+        for j, evidence_b in enumerate(evidence_list):
             if j in used:
-
                 continue
 
-            similarity = (
-                compute_alignment_score(
-                    evidence_a.content,
-                    evidence_b.content
-                )
+            similarity = compute_alignment_score(
+                evidence_a.content,
+                evidence_b.content
             )
 
             if similarity >= threshold:
-
-                cluster.append(
-                    evidence_b
-                )
-
+                cluster.append(evidence_b)
                 used.add(j)
 
         clusters.append(cluster)
@@ -3356,76 +2675,35 @@ def cluster_evidence(
 # =====================================================
 
 def analyze_clusters(clusters):
-
     cluster_data = []
 
     for cluster in clusters:
-
         labels = defaultdict(int)
-
         total_score = 0
-
         domains = set()
 
         for evidence in cluster:
-
             # ==========================================
             # SAFETY DEFAULTS
             # ==========================================
-
-            if not hasattr(
-                evidence,
-                "nli_label"
-            ):
-
+            if not hasattr(evidence, "nli_label"):
                 evidence.nli_label = "NEUTRAL"
 
-            if not hasattr(
-                evidence,
-                "final_score"
-            ):
-
+            if not hasattr(evidence, "final_score"):
                 evidence.final_score = 0.0
 
-            labels[
-                evidence.nli_label
-            ] += 1
+            labels[evidence.nli_label] += 1
+            total_score += evidence.final_score
+            domains.add(getattr(evidence, "source_url", "unknown"))
 
-            total_score += (
-                evidence.final_score
-            )
-
-            domains.add(
-                getattr(
-                    evidence,
-                    "source_url",
-                    "unknown"
-                )
-            )
-
-        dominant_label = max(
-            labels,
-            key=labels.get
-        )
+        dominant_label = max(labels, key=labels.get)
 
         cluster_data.append({
-
-            "size":
-            len(cluster),
-
-            "label":
-            dominant_label,
-
-            "avg_score":
-            total_score
-            /
-            max(len(cluster), 1),
-
-            "unique_sources":
-            len(domains),
-
-            "evidence":
-            cluster
+            "size": len(cluster),
+            "label": dominant_label,
+            "avg_score": total_score / max(len(cluster), 1),
+            "unique_sources": len(domains),
+            "evidence": cluster
         })
 
     return cluster_data
@@ -3435,772 +2713,401 @@ def analyze_clusters(clusters):
 # MAIN VERDICT AGGREGATION
 # =====================================================
 
-def aggregate_verdicts(
-    claim,
-    evidence_list
-):
-
+def aggregate_verdicts(claim, evidence_list):
     scored_evidence = []
 
     # ==========================================
     # SCORE ALL EVIDENCE
     # ==========================================
-
     for evidence in evidence_list:
-
         # ==========================================
         # SAFETY DEFAULTS
         # ==========================================
-
-        if not hasattr(
-            evidence,
-            "nli_label"
-        ):
-
+        if not hasattr(evidence, "nli_label"):
             evidence.nli_label = "NEUTRAL"
 
-        if not hasattr(
-            evidence,
-            "nli_confidence"
-        ):
-
+        if not hasattr(evidence, "nli_confidence"):
             evidence.nli_confidence = 0.0
 
-        if not hasattr(
-            evidence,
-            "fact_match"
-        ):
-
+        if not hasattr(evidence, "fact_match"):
             evidence.fact_match = {}
 
-        if not hasattr(
-            evidence,
-            "alignment_score"
-        ):
-
+        if not hasattr(evidence, "alignment_score"):
             evidence.alignment_score = 0.0
 
-        if not hasattr(
-            evidence,
-            "fact_score"
-        ):
-
+        if not hasattr(evidence, "fact_score"):
             evidence.fact_score = 0.0
 
-        if not hasattr(
-            evidence,
-            "final_score"
-        ):
-
+        if not hasattr(evidence, "final_score"):
             evidence.final_score = 0.0
 
         # ==========================================
         # EVIDENCE SCORING
         # ==========================================
-
-        scored = compute_evidence_score(
-
-            claim,
-            evidence,
-            evidence_list
-        )
-
-        scored_evidence.append(
-            scored
-        )
+        scored = compute_evidence_score(claim, evidence, evidence_list)
+        scored_evidence.append(scored)
 
     # ==========================================
     # SAFETY CHECK
     # ==========================================
-
     if not scored_evidence:
-
         return {
-
             "verdict": "NEUTRAL",
-
             "confidence": 0.0,
-
             "top_evidence": None,
-
             "margin": 0,
-
             "cross_contradictions": [],
-
             "evidence_clusters": []
         }
 
     # ==========================================
     # SORT BY FINAL SCORE
     # ==========================================
-
     scored_evidence.sort(
-
-        key=lambda x: getattr(
-            x,
-            "final_score",
-            0.0
-        ),
-
+        key=lambda x: getattr(x, "final_score", 0.0),
         reverse=True
     )
 
     # ==========================================
     # EVIDENCE CLUSTERING
     # ==========================================
+    clusters = cluster_evidence(scored_evidence[:10])
+    cluster_analysis = analyze_clusters(clusters)
+    print("\n[CLUSTER ANALYSIS]")
 
-    clusters = cluster_evidence(
-        scored_evidence[:10]
-    )
-
-    cluster_analysis = analyze_clusters(
-        clusters
-    )
+    for cluster in cluster_analysis:
+        print(
+            "LABEL:", cluster["label"],
+            "SIZE:", cluster["size"],
+            "AVG:", cluster["avg_score"],
+            "SOURCES:", cluster["unique_sources"]
+        )
 
     # ==========================================
     # CLUSTER BOOSTS
     # ==========================================
-
     entailment_cluster_boost = 0
-
     contradiction_cluster_boost = 0
-
     neutral_cluster_boost = 0
 
     for cluster in cluster_analysis:
-
-        source_bonus = min(
-            cluster["unique_sources"],
-            4
-        )
-
-        cluster_strength = (
-
-            cluster["size"]
-            *
-            source_bonus
-            *
-            1.5
-        )
+        source_bonus = min(cluster["unique_sources"], 4)
+        cluster_strength = cluster["size"] * source_bonus * 1.5
 
         if cluster["label"] == "ENTAILMENT":
-
-            entailment_cluster_boost += (
-                cluster_strength
-            )
-
+            entailment_cluster_boost += cluster_strength
         elif cluster["label"] == "CONTRADICTION":
-
-            contradiction_cluster_boost += (
-                cluster_strength
-            )
-
+            contradiction_cluster_boost += cluster_strength
         else:
-
-            neutral_cluster_boost += (
-                cluster_strength
-            )
+            neutral_cluster_boost += cluster_strength
 
     # ==========================================
     # CROSS-EVIDENCE CONTRADICTION ANALYSIS
     # ==========================================
-
     contradiction_pairs = []
-
     contradiction_penalty = 0
-
     top_window = scored_evidence[:5]
 
     for i in range(len(top_window)):
-
         for j in range(i + 1, len(top_window)):
-
             evidence_a = top_window[i]
-
             evidence_b = top_window[j]
 
-            conflicts_a = (
-                getattr(
-                    evidence_a,
-                    "fact_match",
-                    {}
-                ).get(
-                    "conflicts",
-                    []
-                )
-            )
-
-            conflicts_b = (
-                getattr(
-                    evidence_b,
-                    "fact_match",
-                    {}
-                ).get(
-                    "conflicts",
-                    []
-                )
-            )
+            conflicts_a = getattr(evidence_a, "fact_match",
+                                  {}).get("conflicts", [])
+            conflicts_b = getattr(evidence_b, "fact_match",
+                                  {}).get("conflicts", [])
 
             opposite_labels = (
-
-                (
-                    evidence_a.nli_label
-                    ==
-                    "ENTAILMENT"
-
-                    and
-
-                    evidence_b.nli_label
-                    ==
-                    "CONTRADICTION"
-                )
-
-                or
-
-                (
-                    evidence_a.nli_label
-                    ==
-                    "CONTRADICTION"
-
-                    and
-
-                    evidence_b.nli_label
-                    ==
-                    "ENTAILMENT"
-                )
+                (evidence_a.nli_label == "ENTAILMENT" and evidence_b.nli_label == "CONTRADICTION") or
+                (evidence_a.nli_label ==
+                 "CONTRADICTION" and evidence_b.nli_label == "ENTAILMENT")
             )
 
             strong_conflict = (
-
-                "action_conflict"
-                in conflicts_a
-
-                or
-
-                "action_conflict"
-                in conflicts_b
-
-                or
-
-                "year_conflict"
-                in conflicts_a
-
-                or
-
-                "year_conflict"
-                in conflicts_b
-
-                or
-
-                "number_conflict"
-                in conflicts_a
-
-                or
-
-                "number_conflict"
-                in conflicts_b
-
-                or
-
-                "negation_conflict"
-                in conflicts_a
-
-                or
-
-                "negation_conflict"
-                in conflicts_b
+                "action_conflict" in conflicts_a or "action_conflict" in conflicts_b or
+                "year_conflict" in conflicts_a or "year_conflict" in conflicts_b or
+                "number_conflict" in conflicts_a or "number_conflict" in conflicts_b or
+                "negation_conflict" in conflicts_a or "negation_conflict" in conflicts_b
             )
 
+            print("\n[PAIR CHECK]")
+            print("A:", evidence_a.title)
+            print("B:", evidence_b.title)
+
+            print("LABEL A:", evidence_a.nli_label)
+            print("LABEL B:", evidence_b.nli_label)
+
+            print("OPPOSITE:", opposite_labels)
+            print("STRONG:", strong_conflict)
+
+            print("CONFLICTS A:", conflicts_a)
+            print("CONFLICTS B:", conflicts_b)
+
             if opposite_labels or strong_conflict:
+                print("\n[CONTRADICTION PAIR FOUND]")
+                print("A:", evidence_a.title)
+                print("B:", evidence_b.title)
+                print("LABELS:", evidence_a.nli_label, evidence_b.nli_label)
+                print("CONFLICTS A:", conflicts_a)
+                print("CONFLICTS B:", conflicts_b)
 
                 contradiction_pairs.append({
-
-                    "evidence_a":
-                    getattr(
-                        evidence_a,
-                        "title",
-                        "unknown"
-                    ),
-
-                    "evidence_b":
-                    getattr(
-                        evidence_b,
-                        "title",
-                        "unknown"
-                    ),
-
-                    "label_a":
-                    evidence_a.nli_label,
-
-                    "label_b":
-                    evidence_b.nli_label,
-
-                    "conflicts_a":
-                    conflicts_a,
-
-                    "conflicts_b":
-                    conflicts_b
+                    "evidence_a": getattr(evidence_a, "title", "unknown"),
+                    "evidence_b": getattr(evidence_b, "title", "unknown"),
+                    "label_a": evidence_a.nli_label,
+                    "label_b": evidence_b.nli_label,
+                    "conflicts_a": conflicts_a,
+                    "conflicts_b": conflicts_b
                 })
-
                 contradiction_penalty += 2
 
     # ==========================================
     # CONSENSUS ANALYSIS
     # ==========================================
-
-    consensus = compute_consensus(
-        scored_evidence[:10]
-    )
+    consensus = compute_consensus(scored_evidence[:10])
 
     # ==========================================
     # TOP EVIDENCE
     # ==========================================
-
     top = scored_evidence[0]
 
     # ==========================================
     # LABEL COUNTS
     # ==========================================
-
     entailment_count = 0
-
     contradiction_count = 0
-
     neutral_count = 0
 
     # ==========================================
     # WEIGHTED LABEL SCORES
     # ==========================================
-
     entailment_score = 0
-
     contradiction_score = 0
-
     neutral_score = 0
 
+    print("\n[TOP 5 LABELS ENTERING AGGREGATOR]")
+
+    for e in scored_evidence[:5]:
+
+        print(
+            e.title[:60],
+            "|",
+            e.nli_label,
+            "|",
+            e.nli_confidence
+        )
+
     for evidence in scored_evidence[:5]:
-
         if evidence.nli_label == "ENTAILMENT":
-
             entailment_count += 1
-
-            entailment_score += (
-                getattr(
-                    evidence,
-                    "final_score",
-                    0.0
-                )
-            )
-
+            entailment_score += getattr(evidence, "final_score", 0.0)
         elif evidence.nli_label == "CONTRADICTION":
-
             contradiction_count += 1
-
-            contradiction_score += (
-                getattr(
-                    evidence,
-                    "final_score",
-                    0.0
-                )
-            )
-
+            contradiction_score += getattr(evidence, "final_score", 0.0)
         else:
-
             neutral_count += 1
-
-            neutral_score += (
-                getattr(
-                    evidence,
-                    "final_score",
-                    0.0
-                )
-            )
+            neutral_score += getattr(evidence, "final_score", 0.0)
 
     # ==========================================
     # APPLY CLUSTER BOOSTS
     # ==========================================
-
-    entailment_score += (
-        entailment_cluster_boost
-    )
-
-    contradiction_score += (
-        contradiction_cluster_boost
-    )
-
-    neutral_score += (
-        neutral_cluster_boost
-    )
+    entailment_score += entailment_cluster_boost
+    contradiction_score += contradiction_cluster_boost
+    neutral_score += neutral_cluster_boost
 
     # ==========================================
     # APPLY CONTRADICTION PENALTY
     # ==========================================
-
     entailment_score -= contradiction_penalty
-
-    contradiction_score += (
-        contradiction_penalty * 0.5
-    )
+    contradiction_score += (contradiction_penalty * 0.5)
 
     # ==========================================
     # WEIGHTED VOTING
     # ==========================================
-
     label_scores = {
-
         "ENTAILMENT": entailment_score,
-
         "NEUTRAL": neutral_score,
-
         "CONTRADICTION": contradiction_score
     }
+    print("\n[LABEL SCORES]")
+    print("ENTAILMENT:", entailment_score)
+    print("NEUTRAL:", neutral_score)
+    print("CONTRADICTION:", contradiction_score)
 
-    weighted_winner = max(
+    print("\n[LABEL COUNTS]")
+    print("ENTAILMENT:", entailment_count)
+    print("NEUTRAL:", neutral_count)
+    print("CONTRADICTION:", contradiction_count)
 
-        label_scores,
-
-        key=label_scores.get
-    )
+    weighted_winner = max(label_scores, key=label_scores.get)
 
     # ==========================================
     # DOMINANCE MARGIN
     # ==========================================
-
     second_score = 0
-
     if len(scored_evidence) > 1:
+        second_score = getattr(scored_evidence[1], "final_score", 0.0)
 
-        second_score = (
-            getattr(
-                scored_evidence[1],
-                "final_score",
-                0.0
-            )
-        )
+    margin = getattr(top, "final_score", 0.0) - second_score
 
-    margin = (
-        getattr(
-            top,
-            "final_score",
-            0.0
-        )
-        -
-        second_score
-    )
+    print("\n[TOP EVIDENCE]")
+    print("TITLE:", top.title)
+    print("LABEL:", top.nli_label)
+    print("FINAL SCORE:", top.final_score)
+    print("ALIGNMENT:", top.alignment_score)
+    print("CONFIDENCE:", top.nli_confidence)
+
+    print("\n[MARGIN]")
+    print(margin)
 
     # ==========================================
     # INITIAL LABEL
     # ==========================================
-
     verdict = weighted_winner
 
     # ==========================================
     # DOMINANT SUPPORT RULE
     # ==========================================
-
     dominant_entailment = (
-
         top.nli_label == "ENTAILMENT"
-
-        and
-
-        top.nli_confidence >= 0.85
-
-        and
-
-        top.final_score >= 35
-
-        and
-
-        top.alignment_score >= 0.60
-
-        and
-
-        margin >= 10
+        and top.nli_confidence >= 0.85
+        and top.final_score >= 35
+        and top.alignment_score >= 0.60
+        and margin >= 10
     )
 
     if dominant_entailment:
-
+        print("\n[RULE FIRED]")
+        print("DOMINANT ENTAILMENT")
         verdict = "ENTAILMENT"
 
     # ==========================================
     # DOMINANT CONTRADICTION RULE
     # ==========================================
-
     dominant_contradiction = (
-
         top.nli_label == "CONTRADICTION"
-
-        and
-
-        top.nli_confidence >= 0.85
-
-        and
-
-        top.final_score >= 35
-
-        and
-
-        top.alignment_score >= 0.60
-
-        and
-
-        margin >= 10
+        and top.nli_confidence >= 0.85
+        and top.final_score >= 35
+        and top.alignment_score >= 0.60
+        and margin >= 10
     )
 
     if dominant_contradiction:
-
+        print("\n[RULE FIRED]")
+        print("DOMINANT CONTRADICTION")
         verdict = "CONTRADICTION"
 
     # ==========================================
     # STRONG FACT CONFLICT OVERRIDE
     # ==========================================
-
     strong_conflict_count = 0
-
     for evidence in scored_evidence[:5]:
-
-        conflicts = getattr(
-            evidence,
-            "fact_match",
-            {}
-        ).get(
-            "conflicts",
-            []
-        )
-
+        conflicts = getattr(evidence, "fact_match", {}).get("conflicts", [])
         if (
-
             evidence.nli_label == "CONTRADICTION"
-
-            and
-
-            (
-                "year_conflict" in conflicts
-                or
-                "number_conflict" in conflicts
-                or
-                "negation_conflict" in conflicts
-                or
-                "action_conflict" in conflicts
-            )
-
-            and
-
-            evidence.final_score >= 25
-
+            and any(c in conflicts for c in ["year_conflict", "number_conflict", "negation_conflict", "action_conflict"])
+            and evidence.final_score >= 25
         ):
-
             strong_conflict_count += 1
 
-    if (
-        strong_conflict_count >= 2
-        and
-        contradiction_score > entailment_score
-    ):
-
+    if strong_conflict_count >= 2 and contradiction_score > entailment_score:
+        print("\n[RULE FIRED]")
+        print("STRONG FACT CONFLICT OVERRIDE")
+        print("COUNT:", strong_conflict_count)
         verdict = "CONTRADICTION"
 
     # ==========================================
     # HIGH SUPPORT CONSENSUS
     # ==========================================
-
-    if (
-
-        entailment_score > contradiction_score
-
-        and
-
-        entailment_score > neutral_score
-
-        and
-
-        entailment_score >= 40
-
-    ):
-
+    if entailment_score > contradiction_score and entailment_score > neutral_score and entailment_score >= 40:
+        print("\n[RULE FIRED]")
+        print("HIGH SUPPORT CONSENSUS")
         verdict = "ENTAILMENT"
 
     # ==========================================
     # HIGH CONTRADICTION CONSENSUS
     # ==========================================
-
-    if (
-
-        contradiction_score > entailment_score
-
-        and
-
-        contradiction_score > neutral_score
-
-        and
-
-        contradiction_score >= 40
-
-    ):
-
+    if contradiction_score > entailment_score and contradiction_score > neutral_score and contradiction_score >= 40:
+        print("\n[RULE FIRED]")
+        print("HIGH CONTRADICTION CONSENSUS")
         verdict = "CONTRADICTION"
 
     # ==========================================
     # CONTRADICTION INSTABILITY CHECK
     # ==========================================
-
-    if (
-
-        len(contradiction_pairs) >= 2
-
-        and
-
-        verdict == "ENTAILMENT"
-
-    ):
-
+    if len(contradiction_pairs) >= 2 and verdict == "ENTAILMENT":
+        print("\n[RULE FIRED]")
+        print("CONTRADICTION INSTABILITY CHECK")
+        print("PAIRS:", len(contradiction_pairs))
         verdict = "NEUTRAL"
 
     # ==========================================
     # CLUSTER STABILITY CHECK
     # ==========================================
-
     strong_entailment_clusters = len([
-
         c for c in cluster_analysis
-
-        if (
-
-            c["label"] == "ENTAILMENT"
-
-            and
-
-            c["size"] >= 2
-        )
+        if c["label"] == "ENTAILMENT" and c["size"] >= 2
     ])
 
     strong_contradiction_clusters = len([
-
         c for c in cluster_analysis
-
-        if (
-
-            c["label"] == "CONTRADICTION"
-
-            and
-
-            c["size"] >= 2
-        )
+        if c["label"] == "CONTRADICTION" and c["size"] >= 2
     ])
 
-    if (
-
-        strong_contradiction_clusters
-        >
-        strong_entailment_clusters
-
-        and
-
-        verdict == "ENTAILMENT"
-
-    ):
-
+    if strong_contradiction_clusters > strong_entailment_clusters and verdict == "ENTAILMENT":
+        print("\n[RULE FIRED]")
+        print("CLUSTER STABILITY CHECK")
+        print("ENTAILMENT CLUSTERS:", strong_entailment_clusters)
+        print("CONTRADICTION CLUSTERS:", strong_contradiction_clusters)
         verdict = "NEUTRAL"
 
     # ==========================================
     # HEAVILY MIXED EVIDENCE
     # ==========================================
-
-    if (
-
-        entailment_score >= 25
-
-        and
-
-        contradiction_score >= 25
-
-        and
-
-        abs(
-            entailment_score
-            -
-            contradiction_score
-        ) < 15
-
-    ):
-
+    if entailment_score >= 25 and contradiction_score >= 25 and abs(entailment_score - contradiction_score) < 15:
+        print("\n[RULE FIRED]")
+        print("HEAVILY MIXED EVIDENCE")
         verdict = "NEUTRAL"
 
     # ==========================================
     # CONFIDENCE
     # ==========================================
-
     confidence = min(
-
         1.0,
-
         (
-            (
-                getattr(
-                    top,
-                    "final_score",
-                    0.0
-                )
-                /
-                40
-            )
-            * 0.5
-            +
-            consensus["strength"]
-            * 0.3
-            +
-            (
-                label_scores.get(
-                    verdict,
-                    0
-                )
-                /
-                100
-            )
-            * 0.2
+            (getattr(top, "final_score", 0.0) / 40) * 0.5
+            + consensus["strength"] * 0.3
+            + (label_scores.get(verdict, 0) / 100) * 0.2
         )
     )
 
     # ==========================================
     # CONFIDENCE REDUCTION
     # ==========================================
+    confidence -= (contradiction_penalty * 0.02)
+    confidence = max(confidence, 0.0)
 
-    confidence -= (
-        contradiction_penalty * 0.02
-    )
-
-    confidence = max(
-        confidence,
-        0.0
-    )
+    print("\n[FINAL DECISION]")
+    print("VERDICT =", verdict)
+    print("\n[CONTRADICTION PAIRS]")
+    print(len(contradiction_pairs))
+    print("\n[CONFIDENCE]")
+    print(confidence)
 
     # ==========================================
     # RETURN
     # ==========================================
-
     return {
-
         "verdict": verdict,
-
         "confidence": confidence,
-
         "top_evidence": top,
-
         "margin": margin,
-
         "consensus": consensus,
-
         "label_scores": label_scores,
-
-        "cross_contradictions":
-        contradiction_pairs,
-
-        "contradiction_penalty":
-        contradiction_penalty,
-
-        "evidence_clusters":
-        cluster_analysis
+        "cross_contradictions": contradiction_pairs,
+        "contradiction_penalty": contradiction_penalty,
+        "evidence_clusters": cluster_analysis
     }
 
 
@@ -4219,17 +3126,17 @@ def generate_verdict_explanation(
 
     try:
 
-        evidence_text = "\n\n".join([
+        top_evidence = evidence_list[0]
 
-            f"Evidence {i+1}: {e.content}"
+        evidence_text = f"""
+Title:
+{top_evidence.title}
 
-            for i, e in enumerate(
-                evidence_list[:3]
-            )
-        ])
-
+Content:
+{top_evidence.content[:300]}
+"""
         prompt = f"""
-Claim:
+Claim: 
 {claim}
 
 Verdict:
@@ -4240,11 +3147,15 @@ Evidence:
 
 Explain why this verdict was reached.
 
-Use only the evidence.
-
-Do not determine the verdict yourself.
-
-Keep the explanation under 150 words.
+Requirements:
+- Use only the primary evidence.
+- Do not discuss other evidence.
+- Do not repeat the verdict.
+- Do not start with "Therefore", "Thus", or "In conclusion".
+- Describe the facts reported in the evidence or summarize the key details from the article that support the verdict.
+- Do not write a conclusion paragraph.
+- Do not repeat yourself.
+- Max 200 words
 """
 
         response = ollama.chat(
@@ -4796,7 +3707,9 @@ def rerank_evidence(
             claim,
             evidence.content
         ])
-
+    print(
+        f"[RERANKING] {len(evidence_list)} items"
+    )
     scores = reranker.predict(
         pairs
     )
@@ -5228,49 +4141,26 @@ def deduplicate_evidence(
 FILE: .\retrieval\hybrid_retriever.py
 ================================================================================
 
-from understanding.claim_classifier import (
-    classify_claim
-)
-
-from retrieval.evidence_deduplicator import (
-    deduplicate_evidence
-)
-
-from retrieval.cross_encoder_reranker import (
-    rerank_evidence
-)
-
-from retrieval.web_search import (
-    search_web
-)
-from retrieval.bm25_retriever import (bm25_rank_evidence)
-
-from analysis.nli_analyzer import (
-    analyze_claim_evidence
-)
+from understanding.claim_classifier import classify_claim
+from retrieval.evidence_deduplicator import deduplicate_evidence
+from retrieval.cross_encoder_reranker import rerank_evidence
+from retrieval.web_search import search_web
+from retrieval.bm25_retriever import bm25_rank_evidence
+from analysis.nli_analyzer import analyze_claim_evidence
 
 # =====================================================
 # CONFIGURATION
 # =====================================================
 
 MIN_EVIDENCE_COUNT = 5
-
 MIN_STRONG_MATCHES = 3
-
 MIN_RERANK_SCORE = 0.60
-
-VERY_STRONG_SCORE = 0.85
-
-MAX_TOTAL_EVIDENCE = 30
-
+VERY_STRONG_SCORE = 0.80
+MAX_TOTAL_EVIDENCE = 15
 MAX_RESULTS_PER_QUERY = 5
-
-MAX_QUERIES_PER_ENGINE = 3
-
+MAX_QUERIES_PER_ENGINE = 2
 MAX_EMPTY_ENGINES = 2
-
 MIN_ENGINE_YIELD = 2
-
 SATURATION_LIMIT = 2
 
 
@@ -5278,27 +4168,14 @@ SATURATION_LIMIT = 2
 # EVIDENCE SUFFICIENCY CHECK
 # =====================================================
 
-def enough_evidence(
-    evidence
-):
-
+def enough_evidence(evidence):
     if len(evidence) >= MIN_EVIDENCE_COUNT:
-
         strong_matches = [
-
             item for item in evidence
-
-            if getattr(
-                item,
-                "reranker_score",
-                0
-            ) >= MIN_RERANK_SCORE
+            if getattr(item, "reranker_score", 0) >= MIN_RERANK_SCORE
         ]
-
         if len(strong_matches) >= MIN_STRONG_MATCHES:
-
             return True
-
     return False
 
 
@@ -5306,37 +4183,19 @@ def enough_evidence(
 # ENGINE EXECUTION
 # =====================================================
 
-def run_engine(
-    engine,
-    query
-):
-
+def run_engine(engine, query):
     try:
-
         print(f"\n[ENGINE] {engine}")
         print(f"[QUERY] {query}")
 
-        results = search_web(
-
-            query=query,
-
-            engine=engine
-        )
-
-        print(
-            f"[RESULT COUNT] {len(results)}"
-        )
+        results = search_web(query=query, engine=engine)
+        print(f"[RESULT COUNT] {len(results)}")
 
         if not results:
-
             return []
 
-        return results[
-            :MAX_RESULTS_PER_QUERY
-        ]
-
+        return results[:MAX_RESULTS_PER_QUERY]
     except Exception as e:
-
         return []
 
 
@@ -5344,47 +4203,22 @@ def run_engine(
 # QUERY PRIORITIZATION
 # =====================================================
 
-def prioritize_queries(
-    queries
-):
+def prioritize_queries(queries):
 
-    sorted_queries = sorted(
-
-        queries,
-
-        key=lambda q: len(q.split())
-    )
-
-    return sorted_queries[
-        :MAX_QUERIES_PER_ENGINE
-    ]
+    return queries[:MAX_QUERIES_PER_ENGINE]
 
 
 # =====================================================
 # EARLY RERANK CHECK
 # =====================================================
 
-def quick_rerank_check(
-    claim,
-    evidence
-):
-
+def quick_rerank_check(claim, evidence):
     if not evidence:
-
         return []
-
     try:
-
-        ranked = rerank_evidence(
-
-            claim,
-            evidence
-        )
-
+        ranked = rerank_evidence(claim, evidence)
         return ranked
-
     except Exception:
-
         return evidence
 
 
@@ -5392,19 +4226,10 @@ def quick_rerank_check(
 # STRONG MATCH EXTRACTION
 # =====================================================
 
-def extract_strong_matches(
-    evidence
-):
-
+def extract_strong_matches(evidence):
     return [
-
         item for item in evidence
-
-        if getattr(
-            item,
-            "reranker_score",
-            0
-        ) >= MIN_RERANK_SCORE
+        if getattr(item, "reranker_score", 0) >= MIN_RERANK_SCORE
     ]
 
 
@@ -5412,20 +4237,10 @@ def extract_strong_matches(
 # VERY STRONG MATCH CHECK
 # =====================================================
 
-def has_very_strong_match(
-    evidence
-):
-
+def has_very_strong_match(evidence):
     for item in evidence:
-
-        if getattr(
-            item,
-            "reranker_score",
-            0
-        ) >= VERY_STRONG_SCORE:
-
+        if getattr(item, "reranker_score", 0) >= VERY_STRONG_SCORE:
             return True
-
     return False
 
 
@@ -5433,21 +4248,10 @@ def has_very_strong_match(
 # RETRIEVAL SATURATION CHECK
 # =====================================================
 
-def retrieval_saturated(
-    previous_count,
-    current_count
-):
-
-    growth = (
-        current_count
-        -
-        previous_count
-    )
-
+def retrieval_saturated(previous_count, current_count):
+    growth = current_count - previous_count
     if growth <= 0:
-
         return True
-
     return False
 
 
@@ -5455,110 +4259,60 @@ def retrieval_saturated(
 # ENGINE SELECTION
 # =====================================================
 
-def determine_search_engines(
-    claim_type
-):
-
-    claim_type = str(
-        claim_type
-    ).lower()
+def determine_search_engines(claim_type):
+    claim_type = str(claim_type).lower()
 
     if claim_type == "factual":
-
-        return [
-            "tavily",
-            "serper",
-            "duckduckgo"
-        ]
-
+        return ["tavily", "serper", "duckduckgo"]
     elif claim_type == "news":
-
-        return [
-            "serper",
-            "tavily",
-            "duckduckgo"
-        ]
-
+        return ["serper", "tavily", "duckduckgo"]
     elif claim_type == "political":
-
-        return [
-            "serper",
-            "tavily",
-            "duckduckgo"
-        ]
-
+        return ["serper", "tavily", "duckduckgo"]
     elif claim_type == "institutional":
-
-        return [
-            "tavily",
-            "serper",
-            "duckduckgo"
-        ]
-
+        return ["tavily", "serper", "duckduckgo"]
     elif claim_type == "event":
-
-        return [
-            "serper",
-            "tavily",
-            "duckduckgo"
-        ]
-
+        return ["serper", "tavily", "duckduckgo"]
     elif claim_type == "regional":
+        return ["rss", "google_cse", "youtube"]
 
-        return [
-            "rss",
-            "google_cse",
-            "youtube"
-        ]
-
-    return [
-        "tavily",
-        "serper",
-        "duckduckgo"
-    ]
+    return ["tavily", "serper", "duckduckgo"]
 
 
 # =====================================================
 # MAIN RETRIEVAL PIPELINE
 # =====================================================
 
-def retrieve_evidence(
-    claim,
-    queries
-):
 
+def retrieve_evidence(claim, queries):
     # ==========================================
     # CLAIM CLASSIFICATION
     # ==========================================
-
-    claim_info = classify_claim(
-        claim
-    )
+    claim_info = classify_claim(claim)
     print(claim_info)
 
-    claim_type = claim_info.get(
-        "claim_types",
-        ["general"]
-    )
+    claim_type = claim_info.get("claim_types", ["general"])
 
     # ==========================================
     # ENGINE SELECTION
     # ==========================================
-    claim_types_lower = [
-        str(t).lower()
-        for t in claim_type
-    ]
-    if "regional" in claim_types_lower:
+    claim_types_lower = [str(t).lower() for t in claim_type]
 
+    if "institutional" in claim_types_lower:
+        primary_type = "institutional"
+    elif "political" in claim_types_lower:
+        primary_type = "political"
+    elif "event" in claim_types_lower:
+        primary_type = "event"
+    elif "news" in claim_types_lower:
+        primary_type = "news"
+    elif "regional" in claim_types_lower:
         primary_type = "regional"
-
+    elif "factual" in claim_types_lower:
+        primary_type = "factual"
     else:
+        primary_type = "factual"
 
-        primary_type = claim_types_lower[0]
-
-    engines = determine_search_engines(
-        primary_type
-    )
+    engines = determine_search_engines(primary_type)
     print("\nCLAIM TYPES:", claim_type)
     print("PRIMARY TYPE:", primary_type)
     print("ENGINES:", engines)
@@ -5566,160 +4320,93 @@ def retrieve_evidence(
     # ==========================================
     # QUERY PRIORITIZATION
     # ==========================================
-
-    prioritized_queries = (
-        prioritize_queries(
-            queries
-        )
-    )
+    prioritized_queries = prioritize_queries(queries)
+    print("\n[QUERIES PASSED TO RETRIEVER]")
+    for q in queries:
+        print(q)
 
     all_evidence = []
-
     used_engines = []
-
     stage_logs = []
-
     empty_engine_count = 0
-
     saturation_counter = 0
-
     previous_total = 0
 
     # ==========================================
     # STAGED RETRIEVAL
     # ==========================================
-
     for engine in engines:
-
         engine_results = []
 
         # --------------------------------------
         # RUN SEARCHES
         # --------------------------------------
-
         for query in prioritized_queries:
-
-            results = run_engine(
-
-                engine,
-                query
-            )
-
-            engine_results.extend(
-                results
-            )
+            results = run_engine(engine, query)
+            engine_results.extend(results)
 
         # --------------------------------------
         # DEDUPLICATION
         # --------------------------------------
-
-        engine_results = (
-            deduplicate_evidence(
-                engine_results
-            )
-        )
+        engine_results = deduplicate_evidence(engine_results)
 
         # --------------------------------------
         # TRACK SUCCESSFUL ENGINE
         # --------------------------------------
-
         if engine_results:
-
-            used_engines.append(
-                engine
-            )
+            used_engines.append(engine)
 
         # --------------------------------------
         # LOW-YIELD ENGINE DETECTION
         # --------------------------------------
-
         if len(engine_results) < MIN_ENGINE_YIELD:
-
             empty_engine_count += 1
 
         # --------------------------------------
         # GLOBAL ADD
         # --------------------------------------
-
-        all_evidence.extend(
-            engine_results
-        )
+        all_evidence.extend(engine_results)
 
         # --------------------------------------
         # GLOBAL DEDUP
         # --------------------------------------
-
-        all_evidence = (
-            deduplicate_evidence(
-                all_evidence
-            )
-        )
+        all_evidence = deduplicate_evidence(all_evidence)
 
         # --------------------------------------
         # LIMIT TOTAL EVIDENCE
         # --------------------------------------
-
-        all_evidence = all_evidence[
-            :MAX_TOTAL_EVIDENCE
-        ]
+        all_evidence = all_evidence[:MAX_TOTAL_EVIDENCE]
 
         # --------------------------------------
         # QUICK RERANK
         # --------------------------------------
-
         # -----
         # BM25 ranking
         # -----
-        bm25_ranked = bm25_rank_evidence(
-            claim,
-            all_evidence,
-            top_k=15
-        )
+        bm25_ranked = bm25_rank_evidence(claim, all_evidence, top_k=8)
+
         # ----
         # DENSE rerank
         # ----
-        reranked_preview = quick_rerank_check(
-            claim,
-            bm25_ranked
-        )
+        reranked_preview = quick_rerank_check(claim, bm25_ranked)
 
-        if has_very_strong_match(
-            reranked_preview
-        ):
-
+        if has_very_strong_match(reranked_preview):
             all_evidence = reranked_preview
-
             break
 
         # --------------------------------------
         # STRONG MATCHES
         # --------------------------------------
-
-        strong_matches = (
-            extract_strong_matches(
-                reranked_preview
-            )
-        )
+        strong_matches = extract_strong_matches(reranked_preview)
 
         # --------------------------------------
         # RETRIEVAL SATURATION
         # --------------------------------------
+        current_total = len(strong_matches)
 
-        current_total = len(
-            strong_matches
-        )
-
-        if retrieval_saturated(
-
-            previous_total,
-
-            current_total
-        ):
-
+        if retrieval_saturated(previous_total, current_total):
             saturation_counter += 1
-
         else:
-
             saturation_counter = 0
 
         previous_total = current_total
@@ -5727,98 +4414,53 @@ def retrieve_evidence(
         # --------------------------------------
         # STAGE LOGGING
         # --------------------------------------
-
         stage_logs.append({
-
-            "engine":
-            engine,
-
-            "retrieved":
-            len(engine_results),
-
-            "total_evidence":
-            len(all_evidence),
-
-            "strong_matches":
-            len(strong_matches),
-
-            "saturation":
-            saturation_counter
+            "engine": engine,
+            "retrieved": len(engine_results),
+            "total_evidence": len(all_evidence),
+            "strong_matches": len(strong_matches),
+            "saturation": saturation_counter
         })
 
         # --------------------------------------
-        # EARLY STOP:
-        # ENOUGH STRONG EVIDENCE
+        # EARLY STOP: ENOUGH STRONG EVIDENCE
         # --------------------------------------
-
-        if enough_evidence(
-            reranked_preview
-        ):
-
-            all_evidence = (
-                reranked_preview
-            )
-
+        if enough_evidence(reranked_preview):
+            all_evidence = reranked_preview
             break
 
         # --------------------------------------
-        # EARLY STOP:
-        # TOO MANY EMPTY ENGINES
+        # EARLY STOP: TOO MANY EMPTY ENGINES
         # --------------------------------------
-
         if empty_engine_count >= MAX_EMPTY_ENGINES:
-
             break
 
         # --------------------------------------
-        # EARLY STOP:
-        # RETRIEVAL SATURATED
+        # EARLY STOP: RETRIEVAL SATURATED
         # --------------------------------------
-
         if saturation_counter >= SATURATION_LIMIT:
-
             break
 
     # ==========================================
     # FINAL RERANK
     # ==========================================
-
     if all_evidence:
-
-        bm25_final = bm25_rank_evidence(
-            claim,
-            all_evidence,
-            top_k=15
-        )
-        final_ranked = rerank_evidence(
-            claim,
-            bm25_final
-        )
-        final_ranked = analyze_claim_evidence(
-            claim,
-            final_ranked
-        )
-
+        bm25_final = bm25_rank_evidence(claim, all_evidence, top_k=5)
+        final_ranked = rerank_evidence(claim, bm25_final)
+        final_ranked = final_ranked[:5]
+        print("\n[NLI EVIDENCE COUNT]", len(final_ranked))
+        final_ranked = analyze_claim_evidence(claim, final_ranked)
     else:
-
         final_ranked = []
 
     # ==========================================
     # RETURN
     # ==========================================
-
     return {
-
         "evidence": final_ranked,
-
-        "engines_used":
-        used_engines,
-
-        "claim_type":
-        claim_type,
-
-        "stage_logs":
-        stage_logs
+        "engines_used": used_engines,
+        "claim_type": claim_type,
+        "stage_logs": stage_logs
     }
 
 
@@ -5826,17 +4468,8 @@ def retrieve_evidence(
 # RERANKING PIPELINE
 # =====================================================
 
-def rerank_evidence_pipeline(
-    claim,
-    evidence
-):
-
-    ranked = rerank_evidence(
-
-        claim,
-        evidence
-    )
-
+def rerank_evidence_pipeline(claim, evidence):
+    ranked = rerank_evidence(claim, evidence)
     return ranked
 
 
@@ -5925,15 +4558,8 @@ def search_duckduckgo(
 
             for result in results:
 
-                print("\nRAW RESULT:")
-                print(result)
-                print(type(result))
-
                 if isinstance(result, list):
                     for sub_result in result:
-                        print("\nSUB RESULT:")
-                        print(sub_result)
-                        print(type(sub_result))
 
                         if not isinstance(
                             sub_result,
@@ -5953,7 +4579,7 @@ def search_duckduckgo(
                                 ""
                             ),
 
-                            source_url=result.get(
+                            source_url=sub_result.get(
                                 "href",
                                 ""
                             )
@@ -6001,6 +4627,7 @@ RSS_FEEDS = [
 
     "https://morungexpress.com/feed"
 ]
+RSS_CACHE = {}
 
 
 def search_rss(
@@ -6018,9 +4645,12 @@ def search_rss(
 
         for feed_url in RSS_FEEDS:
 
-            feed = feedparser.parse(
-                feed_url
-            )
+            if feed_url not in RSS_CACHE:
+
+                RSS_CACHE[feed_url] = feedparser.parse(
+                    feed_url
+                )
+            feed = RSS_CACHE[feed_url]
 
             for entry in feed.entries:
 
@@ -6425,7 +5055,7 @@ def search_web(
     engine="duckduckgo",
     max_results=5
 ):
-    print("\nWEB_SEARCH MODULE LOADED\n")
+
     print("\nSEARCH_WEB CALLED")
     print("ENGINE =", engine)
 
@@ -7719,6 +6349,28 @@ def clean_text(text):
 
 
 # =====================================================
+# QUERY SCORING
+# =====================================================
+def score_query(query, claim):
+    query_words = set(clean_text(query).split())
+    claim_words = set(clean_text(claim).split())
+
+    overlap = len(query_words & claim_words)
+    score = overlap
+
+    if len(query_words) >= 4:
+        score += 2
+
+    if len(query_words) >= 6:
+        score += 2
+
+    if len(query_words) < 3:
+        score -= 5
+
+    return score
+
+
+# =====================================================
 # QUERY BUILDER
 # =====================================================
 def build_search_queries(claim, decomposition):
@@ -7868,16 +6520,33 @@ def build_search_queries(claim, decomposition):
             seen.add(query)
 
     # ==========================================
-    # PRIORITIZE SHORTER QUERIES
+    # FILTER SHORT QUERIES
     # ==========================================
-    clean_queries = sorted(
-        clean_queries,
-        key=lambda q: (
-            -len(q.split()),
-            q.count("")
-        )
-    )
-    return clean_queries[:15]
+    filtered_queries = []
+    for query in clean_queries:
+        if len(query.split()) < 3:
+            continue
+        filtered_queries.append(query)
+
+    # ==========================================
+    # SCORE QUERIES
+    # ==========================================
+    scored_queries = []
+    for query in filtered_queries:
+        score = score_query(query, claim)
+        scored_queries.append((score, query))
+
+    scored_queries.sort(key=lambda x: x[0], reverse=True)
+
+    final_queries = [
+        query for score, query in scored_queries[:10]
+    ]
+
+    print("\n[TOP QUERIES]")
+    for q in final_queries[:5]:
+        print(q)
+
+    return final_queries
 
 
 ================================================================================

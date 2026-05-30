@@ -9,17 +9,17 @@ def generate_verdict_explanation(
 
     try:
 
-        evidence_text = "\n\n".join([
+        top_evidence = evidence_list[0]
 
-            f"Evidence {i+1}: {e.content}"
+        evidence_text = f"""
+Title:
+{top_evidence.title}
 
-            for i, e in enumerate(
-                evidence_list[:3]
-            )
-        ])
-
+Content:
+{top_evidence.content[:300]}
+"""
         prompt = f"""
-Claim:
+Claim: 
 {claim}
 
 Verdict:
@@ -30,11 +30,15 @@ Evidence:
 
 Explain why this verdict was reached.
 
-Use only the evidence.
-
-Do not determine the verdict yourself.
-
-Keep the explanation under 150 words.
+Requirements:
+- Use only the primary evidence.
+- Do not discuss other evidence.
+- Do not repeat the verdict.
+- Do not start with "Therefore", "Thus", or "In conclusion".
+- Describe the facts reported in the evidence or summarize the key details from the article that support the verdict.
+- Do not write a conclusion paragraph.
+- Do not repeat yourself.
+- Max 200 words
 """
 
         response = ollama.chat(

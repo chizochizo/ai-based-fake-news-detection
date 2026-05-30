@@ -149,6 +149,17 @@ def compute_evidence_score(
 
         evidence.content
     )
+    print("\n[FACT MATCH DEBUG]")
+    print("CLAIM:", claim)
+    print("TITLE:", evidence.title)
+    print("CONFLICTS:",
+          fact_match.get("conflicts", []))
+
+    print("MATCHES:",
+          fact_match.get("matches", []))
+
+    print("EXTRACTED:",
+          fact_match)
 
     fact_score = fact_match["score"]
 

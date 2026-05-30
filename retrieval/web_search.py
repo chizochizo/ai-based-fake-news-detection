@@ -79,15 +79,8 @@ def search_duckduckgo(
 
             for result in results:
 
-                print("\nRAW RESULT:")
-                print(result)
-                print(type(result))
-
                 if isinstance(result, list):
                     for sub_result in result:
-                        print("\nSUB RESULT:")
-                        print(sub_result)
-                        print(type(sub_result))
 
                         if not isinstance(
                             sub_result,
@@ -107,7 +100,7 @@ def search_duckduckgo(
                                 ""
                             ),
 
-                            source_url=result.get(
+                            source_url=sub_result.get(
                                 "href",
                                 ""
                             )
@@ -155,6 +148,7 @@ RSS_FEEDS = [
 
     "https://morungexpress.com/feed"
 ]
+RSS_CACHE = {}
 
 
 def search_rss(
@@ -172,9 +166,12 @@ def search_rss(
 
         for feed_url in RSS_FEEDS:
 
-            feed = feedparser.parse(
-                feed_url
-            )
+            if feed_url not in RSS_CACHE:
+
+                RSS_CACHE[feed_url] = feedparser.parse(
+                    feed_url
+                )
+            feed = RSS_CACHE[feed_url]
 
             for entry in feed.entries:
 
@@ -579,7 +576,7 @@ def search_web(
     engine="duckduckgo",
     max_results=5
 ):
-    print("\nWEB_SEARCH MODULE LOADED\n")
+
     print("\nSEARCH_WEB CALLED")
     print("ENGINE =", engine)
 

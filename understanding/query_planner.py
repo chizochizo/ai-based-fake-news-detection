@@ -32,6 +32,28 @@ def clean_text(text):
 
 
 # =====================================================
+# QUERY SCORING
+# =====================================================
+def score_query(query, claim):
+    query_words = set(clean_text(query).split())
+    claim_words = set(clean_text(claim).split())
+
+    overlap = len(query_words & claim_words)
+    score = overlap
+
+    if len(query_words) >= 4:
+        score += 2
+
+    if len(query_words) >= 6:
+        score += 2
+
+    if len(query_words) < 3:
+        score -= 5
+
+    return score
+
+
+# =====================================================
 # QUERY BUILDER
 # =====================================================
 def build_search_queries(claim, decomposition):
@@ -181,13 +203,30 @@ def build_search_queries(claim, decomposition):
             seen.add(query)
 
     # ==========================================
-    # PRIORITIZE SHORTER QUERIES
+    # FILTER SHORT QUERIES
     # ==========================================
-    clean_queries = sorted(
-        clean_queries,
-        key=lambda q: (
-            -len(q.split()),
-            q.count("")
-        )
-    )
-    return clean_queries[:15]
+    filtered_queries = []
+    for query in clean_queries:
+        if len(query.split()) < 3:
+            continue
+        filtered_queries.append(query)
+
+    # ==========================================
+    # SCORE QUERIES
+    # ==========================================
+    scored_queries = []
+    for query in filtered_queries:
+        score = score_query(query, claim)
+        scored_queries.append((score, query))
+
+    scored_queries.sort(key=lambda x: x[0], reverse=True)
+
+    final_queries = [
+        query for score, query in scored_queries[:10]
+    ]
+
+    print("\n[TOP QUERIES]")
+    for q in final_queries[:5]:
+        print(q)
+
+    return final_queries
