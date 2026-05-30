@@ -1,9 +1,94 @@
 import re
 
-
 # =====================================================
 # CLAIM TYPE KEYWORDS
 # =====================================================
+
+NEWS_KEYWORDS = {
+
+    "today",
+    "yesterday",
+    "latest",
+    "breaking",
+    "currently",
+    "reported",
+    "announced",
+    "confirmed",
+    "said",
+    "stated",
+    "news",
+    "update",
+    "updates",
+    "headline",
+    "headlines",
+    "developing",
+    "report",
+    "reports",
+    "media",
+    "journalist",
+    "press",
+    "revealed"
+}
+
+POLITICAL_KEYWORDS = {
+
+    "government",
+    "minister",
+    "prime minister",
+    "chief minister",
+    "cm",
+    "mp",
+    "mla",
+    "parliament",
+    "assembly",
+    "election",
+    "vote",
+    "voting",
+    "candidate",
+    "campaign",
+    "political",
+    "politics",
+    "party",
+    "opposition",
+    "cabinet",
+    "governor",
+    "president",
+    "vice president",
+    "bjp",
+    "congress",
+    "aap",
+    "npp",
+    "ndpp",
+    "lok sabha",
+    "rajya sabha"
+}
+
+INSTITUTIONAL_KEYWORDS = {
+
+    "university",
+    "college",
+    "school",
+    "hospital",
+    "department",
+    "ministry",
+    "agency",
+    "board",
+    "commission",
+    "authority",
+    "council",
+    "organisation",
+    "organization",
+    "institute",
+    "institution",
+    "directorate",
+    "bureau",
+    "mission",
+    "corporation",
+    "academy",
+    "committee",
+    "office",
+    "secretariat"
+}
 
 EVENT_KEYWORDS = {
 
@@ -19,288 +104,252 @@ EVENT_KEYWORDS = {
     "event",
     "workshop",
     "seminar",
-    "launch"
+    "launch",
+    "inaugurated",
+    "celebrated",
+    "conducted",
+    "competition",
+    "program",
+    "programme",
+    "expo",
+    "conclave",
+    "session",
+    "gathering",
+    "rally",
+    "march",
+    "protest"
 }
 
-STATEMENT_KEYWORDS = {
+REGIONAL_KEYWORDS = {
 
-    "said",
-    "announced",
-    "reported",
-    "claimed",
-    "stated",
-    "according",
-    "confirmed",
-    "declared"
+    "nagaland",
+    "naga",
+
+    "kohima",
+    "dimapur",
+    "mokokchung",
+    "tuensang",
+    "mon",
+    "wokha",
+    "zunheboto",
+    "kiphire",
+    "peren",
+    "longleng",
+    "noklak",
+    "pfutsero",
+    "jalukie",
+
+    "nagaland university",
+    "nsdma",
+    "npsc",
+    "hornbill festival",
+
+    "ao",
+    "angami",
+    "sema",
+    "sumi",
+    "lotha",
+    "chang",
+    "konyak"
 }
-
-NUMERIC_KEYWORDS = {
+CRIME_INCIDENT_KEYWORDS = {
 
     "killed",
     "injured",
     "dead",
     "died",
-    "cases",
-    "votes",
-    "crore",
-    "million",
-    "billion",
-    "percentage",
-    "percent",
-    "km",
-    "tons",
-    "rupees",
-    "dollars"
-}
-
-MISINFORMATION_KEYWORDS = {
-
-    "fake",
-    "hoax",
+    "murdered",
+    "shot",
+    "stabbed",
+    "arrested",
+    "detained",
+    "kidnapped",
+    "abducted",
+    "missing",
+    "stolen",
+    "robbed",
+    "theft",
+    "fraud",
     "scam",
-    "false",
-    "misleading",
-    "propaganda"
+    "attack",
+    "attacked",
+    "violence",
+    "clash",
+    "riot",
+    "accident",
+    "crash",
+    "fire",
+    "explosion",
+    "blast",
+    "earthquake",
+    "flood",
+    "landslide",
+    "cyclone"
 }
+FACTUAL_KEYWORDS = {
 
-QUESTION_KEYWORDS = {
-
-    "is it true",
-    "did",
-    "does",
-    "can",
-    "was",
-    "were"
+    "killed",
+    "injured",
+    "died",
+    "dead",
+    "arrested",
+    "missing",
+    "hospitalized",
+    "hospitalised",
+    "confirmed",
+    "officially",
+    "according"
 }
-
-TEMPORAL_KEYWORDS = {
-
-    "today",
-    "yesterday",
-    "breaking",
-    "currently",
-    "latest",
-    "this year",
-    "this month"
-}
-
 
 # =====================================================
-# CLAIM TYPE CLASSIFIER
+# CLAIM CLASSIFIER
 # =====================================================
 
-def classify_claim(claim):
+
+def classify_claim(
+    claim
+):
 
     text = claim.lower()
 
     claim_types = []
 
     # ==========================================
-    # MISINFORMATION CLAIM
+    # REGIONAL
     # ==========================================
 
     if any(
-        word in text
-        for word in MISINFORMATION_KEYWORDS
+
+        keyword in text
+
+        for keyword
+
+        in REGIONAL_KEYWORDS
     ):
 
         claim_types.append(
-            "misinformation"
+            "regional"
         )
 
     # ==========================================
-    # STATEMENT CLAIM
+    # POLITICAL
     # ==========================================
 
     if any(
-        word in text
-        for word in STATEMENT_KEYWORDS
+
+        keyword in text
+
+        for keyword
+
+        in POLITICAL_KEYWORDS
     ):
 
         claim_types.append(
-            "statement"
+            "political"
         )
 
     # ==========================================
-    # EVENT CLAIM
+    # INSTITUTIONAL
     # ==========================================
 
     if any(
-        word in text
-        for word in EVENT_KEYWORDS
+
+        keyword in text
+
+        for keyword
+
+        in INSTITUTIONAL_KEYWORDS
+    ):
+
+        claim_types.append(
+            "institutional"
+        )
+
+    # ==========================================
+    # EVENT
+    # ==========================================
+
+    if any(
+
+        keyword in text
+
+        for keyword
+
+        in EVENT_KEYWORDS
     ):
 
         claim_types.append(
             "event"
         )
-
     # ==========================================
-    # NUMERIC CLAIM
+    # FACTUAL CLAIM
     # ==========================================
 
     if any(
         word in text
-        for word in NUMERIC_KEYWORDS
+        for word in FACTUAL_KEYWORDS
     ):
 
         claim_types.append(
-            "numeric"
+            "factual"
         )
 
-    # direct number detection
+    # ==========================================
+    # NEWS
+    # ==========================================
 
-    if re.search(r"\b\d+\b", text):
+    if any(
 
-        if "numeric" not in claim_types:
+        keyword in text
 
+        for keyword
+
+        in NEWS_KEYWORDS
+    ):
+
+        claim_types.append(
+            "news"
+        )
+
+    # ---
+    # CRIME INCIDENT KEYWORDS
+    # ----
+    if any(
+        keyword in text
+        for keyword in CRIME_INCIDENT_KEYWORDS
+    ):
+        if "news" not in claim_types:
             claim_types.append(
-                "numeric"
+                "news"
             )
 
     # ==========================================
-    # QUESTION CLAIM
+    # NUMBER DETECTION
     # ==========================================
 
-    if any(
-        phrase in text
-        for phrase in QUESTION_KEYWORDS
-    ):
+    if re.search(r"\b\d+\b", text):
 
-        claim_types.append(
-            "question"
-        )
+        if "factual" not in claim_types:
 
-    # ==========================================
-    # TEMPORAL / BREAKING CLAIM
-    # ==========================================
-
-    if any(
-        word in text
-        for word in TEMPORAL_KEYWORDS
-    ):
-
-        claim_types.append(
-            "breaking_news"
-        )
+            claim_types.append(
+                "factual"
+            )
 
     # ==========================================
-    # FALLBACK
+    # FACTUAL
     # ==========================================
 
     if not claim_types:
-
         claim_types.append(
-            "general"
+            "factual"
         )
 
     # ==========================================
-    # RETRIEVAL PRIORITY
+    # RETURN
     # ==========================================
-
-    retrieval_strategy = determine_retrieval_strategy(
-        claim_types
-    )
 
     return {
 
-        "claim_types": claim_types,
-
-        "retrieval_strategy":
-        retrieval_strategy
+        "claim_types":
+        claim_types
     }
-
-
-# =====================================================
-# RETRIEVAL STRATEGY ENGINE
-# =====================================================
-
-def determine_retrieval_strategy(
-    claim_types
-):
-
-    strategy = {
-
-        "use_news_api": False,
-
-        "use_factcheck_api": False,
-
-        "use_rss": False,
-
-        "use_wikidata": False,
-
-        "priority": []
-    }
-
-    # ==========================================
-    # EVENT CLAIMS
-    # ==========================================
-
-    if "event" in claim_types:
-
-        strategy["use_news_api"] = True
-
-        strategy["priority"].append(
-            "news_search"
-        )
-
-    # ==========================================
-    # BREAKING NEWS
-    # ==========================================
-
-    if "breaking_news" in claim_types:
-
-        strategy["use_news_api"] = True
-
-        strategy["use_rss"] = True
-
-        strategy["priority"].append(
-            "latest_news"
-        )
-
-    # ==========================================
-    # MISINFORMATION CLAIMS
-    # ==========================================
-
-    if "misinformation" in claim_types:
-
-        strategy["use_factcheck_api"] = True
-
-        strategy["priority"].append(
-            "factcheck"
-        )
-
-    # ==========================================
-    # NUMERIC CLAIMS
-    # ==========================================
-
-    if "numeric" in claim_types:
-
-        strategy["priority"].append(
-            "cross_source_validation"
-        )
-
-    # ==========================================
-    # STATEMENT CLAIMS
-    # ==========================================
-
-    if "statement" in claim_types:
-
-        strategy["use_news_api"] = True
-
-        strategy["priority"].append(
-            "official_sources"
-        )
-
-    # ==========================================
-    # GENERAL CLAIMS
-    # ==========================================
-
-    if "general" in claim_types:
-
-        strategy["use_wikidata"] = True
-
-        strategy["priority"].append(
-            "knowledge_lookup"
-        )
-
-    return strategy

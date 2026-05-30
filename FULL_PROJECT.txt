@@ -396,6 +396,78 @@ print(len(result.ranked_evidence))
 
 
 ================================================================================
+FILE: .\test_classifier.py
+================================================================================
+
+from understanding.claim_classifier import (
+    classify_claim
+)
+
+claims = [
+
+    "Nagaland University hosted Startup Sprint on 22 April",
+
+    "5 people were killed in a road accident in Kohima",
+
+    "Prime Minister announced a new scheme",
+
+    "The Earth revolves around the Sun",
+
+    "Hornbill Festival was held in Nagaland",
+
+    "Nagaland government launched a new policy",
+
+    "20 students were injured in a bus accident"
+]
+
+for claim in claims:
+
+    result = classify_claim(
+        claim
+    )
+
+    print("\n" + "=" * 50)
+
+    print("CLAIM:")
+    print(claim)
+
+    print("\nCLASSIFICATION:")
+
+    print(
+        result
+    )
+
+
+================================================================================
+FILE: .\test_retrieval.py
+================================================================================
+
+from retrieval.hybrid_retriever import retrieve_evidence
+
+claim = "Nagaland University hosted Startup Sprint on 22 April"
+
+queries = [
+    claim,
+    "Nagaland University Startup Sprint",
+    "Startup Sprint Nagaland University April"
+]
+
+result = retrieve_evidence(
+    claim,
+    queries
+)
+
+print("\nENGINES USED:")
+print(result["engines_used"])
+
+print("\nCLAIM TYPE:")
+print(result["claim_type"])
+
+print("\nEVIDENCE COUNT:")
+print(len(result["evidence"]))
+
+
+================================================================================
 FILE: .\test_search.py
 ================================================================================
 
@@ -2440,7 +2512,7 @@ def clean_evidence_text(text):
 
     if len(text) > 1200:
 
-        text = text[:1200]
+        text = text[:1800]
 
     return text
 
@@ -2451,7 +2523,8 @@ def clean_evidence_text(text):
 
 def extract_focus_sentence(
     claim,
-    evidence_text
+    evidence_text,
+    top_k=3
 ):
 
     claim_words = set(
@@ -2461,11 +2534,12 @@ def extract_focus_sentence(
         .split()
     )
 
-    sentences = evidence_text.split(".")
-
-    best_sentence = evidence_text
-
-    best_overlap = 0
+    sentences = [
+        s.strip()
+        for s in evidence_text.split(".")
+        if s.strip()
+    ]
+    scored = []
 
     for sentence in sentences:
 
@@ -2478,14 +2552,29 @@ def extract_focus_sentence(
             &
             sentence_words
         )
+        scored.append(
+            (
+                overlap,
+                sentence
+            )
+        )
+    scored.sort(
+        key=lambda x: x[0],
+        reverse=True
+    )
+    selected = [
+        sentence
+        for overlap, sentence
+        in scored[:top_k]
+        if overlap > 0
+    ]
+    if not selected:
 
-        if overlap > best_overlap:
+        return evidence_text[:1000]
 
-            best_overlap = overlap
-
-            best_sentence = sentence
-
-    return best_sentence.strip()
+    return ". ".join(
+        selected
+    )
 
 
 # =====================================================
@@ -2514,15 +2603,15 @@ def calibrate_nli_label(
 
         and
 
-        confidence >= 0.45
+        confidence >= 0.75
 
         and
 
-        alignment_score >= 0.60
+        alignment_score >= 0.70
 
         and
 
-        fact_score >= 10
+        fact_score >= 15
 
     ):
 
@@ -2617,7 +2706,8 @@ def analyze_claim_evidence(
             focused_evidence = (
                 extract_focus_sentence(
                     normalized_claim,
-                    cleaned_evidence
+                    cleaned_evidence,
+                    top_k=3
                 )
             )
 
@@ -2721,6 +2811,7 @@ def analyze_claim_evidence(
         )
 
     return analyzed
+
 
 ================================================================================
 FILE: .\analysis\report_generator.py
@@ -3804,216 +3895,155 @@ def aggregate_verdicts(
     verdict = weighted_winner
 
     # ==========================================
-    # STRONG ENTAILMENT OVERRIDE
+    # DOMINANT SUPPORT RULE
     # ==========================================
 
-    strong_entailments = [
+    dominant_entailment = (
 
-        e for e in scored_evidence[:5]
-
-        if (
-
-            e.nli_label == "ENTAILMENT"
-
-            and
-
-            getattr(
-                e,
-                "final_score",
-                0.0
-            ) >= 30
-
-            and
-
-            getattr(
-                e,
-                "alignment_score",
-                0.0
-            ) >= 0.60
-
-        )
-    ]
-
-    if len(strong_entailments) >= 1:
-
-        verdict = "ENTAILMENT"
-
-    # ==========================================
-    # STRONG CONTRADICTION OVERRIDE
-    # ==========================================
-
-    strong_contradictions = [
-
-        e for e in scored_evidence[:5]
-
-        if (
-
-            e.nli_label == "CONTRADICTION"
-
-            and
-
-            getattr(
-                e,
-                "final_score",
-                0.0
-            ) >= 30
-
-            and
-
-            getattr(
-                e,
-                "alignment_score",
-                0.0
-            ) >= 0.60
-
-        )
-    ]
-
-    if len(strong_contradictions) >= 1:
-
-        verdict = "CONTRADICTION"
-
-    # ---
-    # SINGLE strong evidence override
-    # ---
-    if (
         top.nli_label == "ENTAILMENT"
+
         and
-        top.nli_confidence >= 0.90
+
+        top.nli_confidence >= 0.85
+
         and
+
         top.final_score >= 35
-        and top.alignment_score >= 0.50
-    ):
-        verdict = "ENTAILMENT"
-
-    # ==========================================
-    # FALLBACK MAJORITY LOGIC
-    # ==========================================
-
-    if verdict == "NEUTRAL":
-
-        if entailment_count >= 2:
-
-            verdict = "ENTAILMENT"
-
-        elif contradiction_count >= 2:
-
-            verdict = "CONTRADICTION"
-
-    # ==========================================
-    # STRONG ENTAILMENT RULE
-    # ==========================================
-
-    if (
-
-        entailment_count >= 2
 
         and
 
-        getattr(
-            top,
-            "alignment_score",
-            0.0
-        ) > 0.60
+        top.alignment_score >= 0.60
 
         and
 
-        getattr(
-            top,
-            "fact_score",
-            0.0
-        ) > 10
+        margin >= 10
+    )
 
-    ):
+    if dominant_entailment:
 
         verdict = "ENTAILMENT"
 
     # ==========================================
-    # STRONG CONTRADICTION RULE
+    # DOMINANT CONTRADICTION RULE
     # ==========================================
 
-    if (
+    dominant_contradiction = (
 
-        contradiction_count >= 2
+        top.nli_label == "CONTRADICTION"
 
         and
 
-        getattr(
-            top,
-            "alignment_score",
-            0.0
-        ) > 0.60
+        top.nli_confidence >= 0.85
 
+        and
+
+        top.final_score >= 35
+
+        and
+
+        top.alignment_score >= 0.60
+
+        and
+
+        margin >= 10
+    )
+
+    if dominant_contradiction:
+
+        verdict = "CONTRADICTION"
+
+    # ==========================================
+    # STRONG FACT CONFLICT OVERRIDE
+    # ==========================================
+
+    strong_conflict_count = 0
+
+    for evidence in scored_evidence[:5]:
+
+        conflicts = getattr(
+            evidence,
+            "fact_match",
+            {}
+        ).get(
+            "conflicts",
+            []
+        )
+
+        if (
+
+            evidence.nli_label == "CONTRADICTION"
+
+            and
+
+            (
+                "year_conflict" in conflicts
+                or
+                "number_conflict" in conflicts
+                or
+                "negation_conflict" in conflicts
+                or
+                "action_conflict" in conflicts
+            )
+
+            and
+
+            evidence.final_score >= 25
+
+        ):
+
+            strong_conflict_count += 1
+
+    if (
+        strong_conflict_count >= 2
+        and
+        contradiction_score > entailment_score
     ):
 
         verdict = "CONTRADICTION"
 
     # ==========================================
-    # OVERRIDE NEUTRAL
+    # HIGH SUPPORT CONSENSUS
     # ==========================================
 
     if (
-
-        getattr(
-            top,
-            "final_score",
-            0.0
-        ) > 25
-
-        and
-
-        getattr(
-            top,
-            "alignment_score",
-            0.0
-        ) > 0.40
-
-        and
-
-        getattr(
-            top,
-            "fact_score",
-            0.0
-        ) > 12
-
-    ):
-
-        if top.nli_label == "NEUTRAL":
-
-            verdict = "ENTAILMENT"
-
-    # ==========================================
-    # HIGH CONSENSUS OVERRIDE
-    # ==========================================
-
-    if (
-
-        entailment_score > neutral_score
-
-        and
 
         entailment_score > contradiction_score
 
         and
 
-        entailment_score > 40
+        entailment_score > neutral_score
+
+        and
+
+        entailment_score >= 40
 
     ):
 
         verdict = "ENTAILMENT"
 
     # ==========================================
+    # HIGH CONTRADICTION CONSENSUS
+    # ==========================================
+
+    if (
+
+        contradiction_score > entailment_score
+
+        and
+
+        contradiction_score > neutral_score
+
+        and
+
+        contradiction_score >= 40
+
+    ):
+
+        verdict = "CONTRADICTION"
+
+    # ==========================================
     # CONTRADICTION INSTABILITY CHECK
     # ==========================================
-    real_contradictions = [
-        pair for pair in contradiction_pairs
-
-        if (
-            pair["label_a"] == "CONTRADICTION"
-            or
-            pair["label_b"] == "CONTRADICTION"
-        )
-    ]
 
     if (
 
@@ -4022,6 +4052,7 @@ def aggregate_verdicts(
         and
 
         verdict == "ENTAILMENT"
+
     ):
 
         verdict = "NEUTRAL"
@@ -4067,6 +4098,31 @@ def aggregate_verdicts(
         and
 
         verdict == "ENTAILMENT"
+
+    ):
+
+        verdict = "NEUTRAL"
+
+    # ==========================================
+    # HEAVILY MIXED EVIDENCE
+    # ==========================================
+
+    if (
+
+        entailment_score >= 25
+
+        and
+
+        contradiction_score >= 25
+
+        and
+
+        abs(
+            entailment_score
+            -
+            contradiction_score
+        ) < 15
+
     ):
 
         verdict = "NEUTRAL"
@@ -4457,6 +4513,9 @@ from types import SimpleNamespace
 from analysis.verdict_explainer import (
     generate_verdict_explanation
 )
+from understanding.claim_decomposer import(
+    decompose_claim
+)
 
 # =====================================================
 # MAIN VERIFICATION PIPELINE
@@ -4482,14 +4541,9 @@ class VerificationPipeline:
         # BASIC DECOMPOSITION PLACEHOLDER
         # =============================================
 
-        decomposition = {
-
-            "entities": [],
-
-            "noun_chunks": [],
-
-            "actions": []
-        }
+        decomposition = decompose_claim(
+            claim
+        )
 
         # =============================================
         # QUERY GENERATION
@@ -5175,8 +5229,7 @@ FILE: .\retrieval\hybrid_retriever.py
 ================================================================================
 
 from understanding.claim_classifier import (
-    classify_claim,
-    determine_retrieval_strategy
+    classify_claim
 )
 
 from retrieval.evidence_deduplicator import (
@@ -5205,6 +5258,8 @@ MIN_EVIDENCE_COUNT = 5
 MIN_STRONG_MATCHES = 3
 
 MIN_RERANK_SCORE = 0.60
+
+VERY_STRONG_SCORE = 0.85
 
 MAX_TOTAL_EVIDENCE = 30
 
@@ -5282,9 +5337,6 @@ def run_engine(
 
     except Exception as e:
 
-        print("\n[SEARCH ERROR]")
-        print(str(e))
-
         return []
 
 
@@ -5357,6 +5409,27 @@ def extract_strong_matches(
 
 
 # =====================================================
+# VERY STRONG MATCH CHECK
+# =====================================================
+
+def has_very_strong_match(
+    evidence
+):
+
+    for item in evidence:
+
+        if getattr(
+            item,
+            "reranker_score",
+            0
+        ) >= VERY_STRONG_SCORE:
+
+            return True
+
+    return False
+
+
+# =====================================================
 # RETRIEVAL SATURATION CHECK
 # =====================================================
 
@@ -5371,7 +5444,7 @@ def retrieval_saturated(
         previous_count
     )
 
-    if growth <= 2:
+    if growth <= 0:
 
         return True
 
@@ -5383,39 +5456,66 @@ def retrieval_saturated(
 # =====================================================
 
 def determine_search_engines(
-    strategy
+    claim_type
 ):
 
-    engines = ["google"]
+    claim_type = str(
+        claim_type
+    ).lower()
 
-    if strategy.get(
-        "use_news_api",
-        False
-    ):
+    if claim_type == "factual":
 
-        engines.append(
-            "bing"
-        )
-
-    if strategy.get(
-        "use_factcheck_api",
-        False
-    ):
-
-        engines.append(
+        return [
+            "tavily",
+            "serper",
             "duckduckgo"
-        )
+        ]
 
-    if strategy.get(
-        "use_rss",
-        False
-    ):
+    elif claim_type == "news":
 
-        engines.append(
-            "google_news"
-        )
+        return [
+            "serper",
+            "tavily",
+            "duckduckgo"
+        ]
 
-    return list(set(engines))
+    elif claim_type == "political":
+
+        return [
+            "serper",
+            "tavily",
+            "duckduckgo"
+        ]
+
+    elif claim_type == "institutional":
+
+        return [
+            "tavily",
+            "serper",
+            "duckduckgo"
+        ]
+
+    elif claim_type == "event":
+
+        return [
+            "serper",
+            "tavily",
+            "duckduckgo"
+        ]
+
+    elif claim_type == "regional":
+
+        return [
+            "rss",
+            "google_cse",
+            "youtube"
+        ]
+
+    return [
+        "tavily",
+        "serper",
+        "duckduckgo"
+    ]
 
 
 # =====================================================
@@ -5434,24 +5534,34 @@ def retrieve_evidence(
     claim_info = classify_claim(
         claim
     )
+    print(claim_info)
 
     claim_type = claim_info.get(
         "claim_types",
         ["general"]
     )
 
-    strategy = claim_info.get(
-        "retrieval_strategy",
-        {}
-    )
-
     # ==========================================
     # ENGINE SELECTION
     # ==========================================
-
-    engines = [
-        "duckduckgo"
+    claim_types_lower = [
+        str(t).lower()
+        for t in claim_type
     ]
+    if "regional" in claim_types_lower:
+
+        primary_type = "regional"
+
+    else:
+
+        primary_type = claim_types_lower[0]
+
+    engines = determine_search_engines(
+        primary_type
+    )
+    print("\nCLAIM TYPES:", claim_type)
+    print("PRIMARY TYPE:", primary_type)
+    print("ENGINES:", engines)
 
     # ==========================================
     # QUERY PRIORITIZATION
@@ -5572,6 +5682,14 @@ def retrieve_evidence(
             claim,
             bm25_ranked
         )
+
+        if has_very_strong_match(
+            reranked_preview
+        ):
+
+            all_evidence = reranked_preview
+
+            break
 
         # --------------------------------------
         # STRONG MATCHES
@@ -5728,7 +5846,7 @@ FILE: .\retrieval\web_search.py
 
 import os
 import requests
-
+import feedparser
 from dotenv import load_dotenv
 
 from ddgs import DDGS
@@ -5830,7 +5948,7 @@ def search_duckduckgo(
                                 ""
                             ),
 
-                            content=result.get(
+                            content=sub_result.get(
                                 "body",
                                 ""
                             ),
@@ -5870,10 +5988,123 @@ def search_duckduckgo(
         return []
     return evidence_list
 
+# =====================================================
+# RSS SEARCH
+# =====================================================
+
+
+RSS_FEEDS = [
+
+    "https://nagalandpost.com/feed/",
+
+    "https://easternmirrornagaland.com/feed/",
+
+    "https://morungexpress.com/feed"
+]
+
+
+def search_rss(
+    query,
+    max_results=5
+):
+
+    evidence_list = []
+
+    query_words = set(
+        query.lower().split()
+    )
+
+    try:
+
+        for feed_url in RSS_FEEDS:
+
+            feed = feedparser.parse(
+                feed_url
+            )
+
+            for entry in feed.entries:
+
+                title = getattr(
+                    entry,
+                    "title",
+                    ""
+                )
+
+                summary = getattr(
+                    entry,
+                    "summary",
+                    ""
+                )
+
+                content = (
+                    title
+                    + " "
+                    + summary
+                )
+
+                overlap = len(
+
+                    query_words
+                    &
+                    set(
+                        content.lower().split()
+                    )
+                )
+
+                if overlap == 0:
+
+                    continue
+
+                evidence = Evidence(
+
+                    title=title,
+
+                    content=summary,
+
+                    source_url=getattr(
+                        entry,
+                        "link",
+                        ""
+                    )
+                )
+
+                evidence_list.append(
+                    (
+                        overlap,
+                        evidence
+                    )
+                )
+
+        evidence_list.sort(
+            key=lambda x: x[0],
+            reverse=True
+        )
+
+        return [
+
+            evidence
+
+            for _, evidence
+
+            in evidence_list[
+                :max_results
+            ]
+        ]
+
+    except Exception as e:
+
+        print(
+            "\nRSS ERROR:"
+        )
+
+        print(str(e))
+
+        return []
 
 # =====================================================
 # TAVILY SEARCH
 # =====================================================
+
 
 def search_tavily(
     query,
@@ -6082,7 +6313,9 @@ def search_google_cse(
                 evidence
             )
 
-    except:
+    except Exception as e:
+        print("\nGOOGLE CSE ERROR")
+        print(str(e))
 
         return []
 
@@ -6199,6 +6432,15 @@ def search_web(
     if engine == "duckduckgo":
 
         return search_duckduckgo(
+
+            query=query,
+
+            max_results=max_results
+        )
+
+    elif engine == "rss":
+
+        return search_rss(
 
             query=query,
 
@@ -6346,10 +6588,95 @@ FILE: .\understanding\claim_classifier.py
 
 import re
 
-
 # =====================================================
 # CLAIM TYPE KEYWORDS
 # =====================================================
+
+NEWS_KEYWORDS = {
+
+    "today",
+    "yesterday",
+    "latest",
+    "breaking",
+    "currently",
+    "reported",
+    "announced",
+    "confirmed",
+    "said",
+    "stated",
+    "news",
+    "update",
+    "updates",
+    "headline",
+    "headlines",
+    "developing",
+    "report",
+    "reports",
+    "media",
+    "journalist",
+    "press",
+    "revealed"
+}
+
+POLITICAL_KEYWORDS = {
+
+    "government",
+    "minister",
+    "prime minister",
+    "chief minister",
+    "cm",
+    "mp",
+    "mla",
+    "parliament",
+    "assembly",
+    "election",
+    "vote",
+    "voting",
+    "candidate",
+    "campaign",
+    "political",
+    "politics",
+    "party",
+    "opposition",
+    "cabinet",
+    "governor",
+    "president",
+    "vice president",
+    "bjp",
+    "congress",
+    "aap",
+    "npp",
+    "ndpp",
+    "lok sabha",
+    "rajya sabha"
+}
+
+INSTITUTIONAL_KEYWORDS = {
+
+    "university",
+    "college",
+    "school",
+    "hospital",
+    "department",
+    "ministry",
+    "agency",
+    "board",
+    "commission",
+    "authority",
+    "council",
+    "organisation",
+    "organization",
+    "institute",
+    "institution",
+    "directorate",
+    "bureau",
+    "mission",
+    "corporation",
+    "academy",
+    "committee",
+    "office",
+    "secretariat"
+}
 
 EVENT_KEYWORDS = {
 
@@ -6365,291 +6692,255 @@ EVENT_KEYWORDS = {
     "event",
     "workshop",
     "seminar",
-    "launch"
+    "launch",
+    "inaugurated",
+    "celebrated",
+    "conducted",
+    "competition",
+    "program",
+    "programme",
+    "expo",
+    "conclave",
+    "session",
+    "gathering",
+    "rally",
+    "march",
+    "protest"
 }
 
-STATEMENT_KEYWORDS = {
+REGIONAL_KEYWORDS = {
 
-    "said",
-    "announced",
-    "reported",
-    "claimed",
-    "stated",
-    "according",
-    "confirmed",
-    "declared"
+    "nagaland",
+    "naga",
+
+    "kohima",
+    "dimapur",
+    "mokokchung",
+    "tuensang",
+    "mon",
+    "wokha",
+    "zunheboto",
+    "kiphire",
+    "peren",
+    "longleng",
+    "noklak",
+    "pfutsero",
+    "jalukie",
+
+    "nagaland university",
+    "nsdma",
+    "npsc",
+    "hornbill festival",
+
+    "ao",
+    "angami",
+    "sema",
+    "sumi",
+    "lotha",
+    "chang",
+    "konyak"
 }
-
-NUMERIC_KEYWORDS = {
+CRIME_INCIDENT_KEYWORDS = {
 
     "killed",
     "injured",
     "dead",
     "died",
-    "cases",
-    "votes",
-    "crore",
-    "million",
-    "billion",
-    "percentage",
-    "percent",
-    "km",
-    "tons",
-    "rupees",
-    "dollars"
-}
-
-MISINFORMATION_KEYWORDS = {
-
-    "fake",
-    "hoax",
+    "murdered",
+    "shot",
+    "stabbed",
+    "arrested",
+    "detained",
+    "kidnapped",
+    "abducted",
+    "missing",
+    "stolen",
+    "robbed",
+    "theft",
+    "fraud",
     "scam",
-    "false",
-    "misleading",
-    "propaganda"
+    "attack",
+    "attacked",
+    "violence",
+    "clash",
+    "riot",
+    "accident",
+    "crash",
+    "fire",
+    "explosion",
+    "blast",
+    "earthquake",
+    "flood",
+    "landslide",
+    "cyclone"
 }
+FACTUAL_KEYWORDS = {
 
-QUESTION_KEYWORDS = {
-
-    "is it true",
-    "did",
-    "does",
-    "can",
-    "was",
-    "were"
+    "killed",
+    "injured",
+    "died",
+    "dead",
+    "arrested",
+    "missing",
+    "hospitalized",
+    "hospitalised",
+    "confirmed",
+    "officially",
+    "according"
 }
-
-TEMPORAL_KEYWORDS = {
-
-    "today",
-    "yesterday",
-    "breaking",
-    "currently",
-    "latest",
-    "this year",
-    "this month"
-}
-
 
 # =====================================================
-# CLAIM TYPE CLASSIFIER
+# CLAIM CLASSIFIER
 # =====================================================
 
-def classify_claim(claim):
+
+def classify_claim(
+    claim
+):
 
     text = claim.lower()
 
     claim_types = []
 
     # ==========================================
-    # MISINFORMATION CLAIM
+    # REGIONAL
     # ==========================================
 
     if any(
-        word in text
-        for word in MISINFORMATION_KEYWORDS
+
+        keyword in text
+
+        for keyword
+
+        in REGIONAL_KEYWORDS
     ):
 
         claim_types.append(
-            "misinformation"
+            "regional"
         )
 
     # ==========================================
-    # STATEMENT CLAIM
+    # POLITICAL
     # ==========================================
 
     if any(
-        word in text
-        for word in STATEMENT_KEYWORDS
+
+        keyword in text
+
+        for keyword
+
+        in POLITICAL_KEYWORDS
     ):
 
         claim_types.append(
-            "statement"
+            "political"
         )
 
     # ==========================================
-    # EVENT CLAIM
+    # INSTITUTIONAL
     # ==========================================
 
     if any(
-        word in text
-        for word in EVENT_KEYWORDS
+
+        keyword in text
+
+        for keyword
+
+        in INSTITUTIONAL_KEYWORDS
+    ):
+
+        claim_types.append(
+            "institutional"
+        )
+
+    # ==========================================
+    # EVENT
+    # ==========================================
+
+    if any(
+
+        keyword in text
+
+        for keyword
+
+        in EVENT_KEYWORDS
     ):
 
         claim_types.append(
             "event"
         )
-
     # ==========================================
-    # NUMERIC CLAIM
+    # FACTUAL CLAIM
     # ==========================================
 
     if any(
         word in text
-        for word in NUMERIC_KEYWORDS
+        for word in FACTUAL_KEYWORDS
     ):
 
         claim_types.append(
-            "numeric"
+            "factual"
         )
 
-    # direct number detection
+    # ==========================================
+    # NEWS
+    # ==========================================
 
-    if re.search(r"\b\d+\b", text):
+    if any(
 
-        if "numeric" not in claim_types:
+        keyword in text
 
+        for keyword
+
+        in NEWS_KEYWORDS
+    ):
+
+        claim_types.append(
+            "news"
+        )
+
+    # ---
+    # CRIME INCIDENT KEYWORDS
+    # ----
+    if any(
+        keyword in text
+        for keyword in CRIME_INCIDENT_KEYWORDS
+    ):
+        if "news" not in claim_types:
             claim_types.append(
-                "numeric"
+                "news"
             )
 
     # ==========================================
-    # QUESTION CLAIM
+    # NUMBER DETECTION
     # ==========================================
 
-    if any(
-        phrase in text
-        for phrase in QUESTION_KEYWORDS
-    ):
+    if re.search(r"\b\d+\b", text):
 
-        claim_types.append(
-            "question"
-        )
+        if "factual" not in claim_types:
 
-    # ==========================================
-    # TEMPORAL / BREAKING CLAIM
-    # ==========================================
-
-    if any(
-        word in text
-        for word in TEMPORAL_KEYWORDS
-    ):
-
-        claim_types.append(
-            "breaking_news"
-        )
+            claim_types.append(
+                "factual"
+            )
 
     # ==========================================
-    # FALLBACK
+    # FACTUAL
     # ==========================================
 
     if not claim_types:
-
         claim_types.append(
-            "general"
+            "factual"
         )
 
     # ==========================================
-    # RETRIEVAL PRIORITY
+    # RETURN
     # ==========================================
-
-    retrieval_strategy = determine_retrieval_strategy(
-        claim_types
-    )
 
     return {
 
-        "claim_types": claim_types,
-
-        "retrieval_strategy":
-        retrieval_strategy
+        "claim_types":
+        claim_types
     }
-
-
-# =====================================================
-# RETRIEVAL STRATEGY ENGINE
-# =====================================================
-
-def determine_retrieval_strategy(
-    claim_types
-):
-
-    strategy = {
-
-        "use_news_api": False,
-
-        "use_factcheck_api": False,
-
-        "use_rss": False,
-
-        "use_wikidata": False,
-
-        "priority": []
-    }
-
-    # ==========================================
-    # EVENT CLAIMS
-    # ==========================================
-
-    if "event" in claim_types:
-
-        strategy["use_news_api"] = True
-
-        strategy["priority"].append(
-            "news_search"
-        )
-
-    # ==========================================
-    # BREAKING NEWS
-    # ==========================================
-
-    if "breaking_news" in claim_types:
-
-        strategy["use_news_api"] = True
-
-        strategy["use_rss"] = True
-
-        strategy["priority"].append(
-            "latest_news"
-        )
-
-    # ==========================================
-    # MISINFORMATION CLAIMS
-    # ==========================================
-
-    if "misinformation" in claim_types:
-
-        strategy["use_factcheck_api"] = True
-
-        strategy["priority"].append(
-            "factcheck"
-        )
-
-    # ==========================================
-    # NUMERIC CLAIMS
-    # ==========================================
-
-    if "numeric" in claim_types:
-
-        strategy["priority"].append(
-            "cross_source_validation"
-        )
-
-    # ==========================================
-    # STATEMENT CLAIMS
-    # ==========================================
-
-    if "statement" in claim_types:
-
-        strategy["use_news_api"] = True
-
-        strategy["priority"].append(
-            "official_sources"
-        )
-
-    # ==========================================
-    # GENERAL CLAIMS
-    # ==========================================
-
-    if "general" in claim_types:
-
-        strategy["use_wikidata"] = True
-
-        strategy["priority"].append(
-            "knowledge_lookup"
-        )
-
-    return strategy
 
 
 ================================================================================

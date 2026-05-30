@@ -610,216 +610,155 @@ def aggregate_verdicts(
     verdict = weighted_winner
 
     # ==========================================
-    # STRONG ENTAILMENT OVERRIDE
+    # DOMINANT SUPPORT RULE
     # ==========================================
 
-    strong_entailments = [
+    dominant_entailment = (
 
-        e for e in scored_evidence[:5]
-
-        if (
-
-            e.nli_label == "ENTAILMENT"
-
-            and
-
-            getattr(
-                e,
-                "final_score",
-                0.0
-            ) >= 30
-
-            and
-
-            getattr(
-                e,
-                "alignment_score",
-                0.0
-            ) >= 0.60
-
-        )
-    ]
-
-    if len(strong_entailments) >= 1:
-
-        verdict = "ENTAILMENT"
-
-    # ==========================================
-    # STRONG CONTRADICTION OVERRIDE
-    # ==========================================
-
-    strong_contradictions = [
-
-        e for e in scored_evidence[:5]
-
-        if (
-
-            e.nli_label == "CONTRADICTION"
-
-            and
-
-            getattr(
-                e,
-                "final_score",
-                0.0
-            ) >= 30
-
-            and
-
-            getattr(
-                e,
-                "alignment_score",
-                0.0
-            ) >= 0.60
-
-        )
-    ]
-
-    if len(strong_contradictions) >= 1:
-
-        verdict = "CONTRADICTION"
-
-    # ---
-    # SINGLE strong evidence override
-    # ---
-    if (
         top.nli_label == "ENTAILMENT"
+
         and
-        top.nli_confidence >= 0.90
+
+        top.nli_confidence >= 0.85
+
         and
+
         top.final_score >= 35
-        and top.alignment_score >= 0.50
-    ):
-        verdict = "ENTAILMENT"
-
-    # ==========================================
-    # FALLBACK MAJORITY LOGIC
-    # ==========================================
-
-    if verdict == "NEUTRAL":
-
-        if entailment_count >= 2:
-
-            verdict = "ENTAILMENT"
-
-        elif contradiction_count >= 2:
-
-            verdict = "CONTRADICTION"
-
-    # ==========================================
-    # STRONG ENTAILMENT RULE
-    # ==========================================
-
-    if (
-
-        entailment_count >= 2
 
         and
 
-        getattr(
-            top,
-            "alignment_score",
-            0.0
-        ) > 0.60
+        top.alignment_score >= 0.60
 
         and
 
-        getattr(
-            top,
-            "fact_score",
-            0.0
-        ) > 10
+        margin >= 10
+    )
 
-    ):
+    if dominant_entailment:
 
         verdict = "ENTAILMENT"
 
     # ==========================================
-    # STRONG CONTRADICTION RULE
+    # DOMINANT CONTRADICTION RULE
     # ==========================================
 
-    if (
+    dominant_contradiction = (
 
-        contradiction_count >= 2
+        top.nli_label == "CONTRADICTION"
 
         and
 
-        getattr(
-            top,
-            "alignment_score",
-            0.0
-        ) > 0.60
+        top.nli_confidence >= 0.85
 
+        and
+
+        top.final_score >= 35
+
+        and
+
+        top.alignment_score >= 0.60
+
+        and
+
+        margin >= 10
+    )
+
+    if dominant_contradiction:
+
+        verdict = "CONTRADICTION"
+
+    # ==========================================
+    # STRONG FACT CONFLICT OVERRIDE
+    # ==========================================
+
+    strong_conflict_count = 0
+
+    for evidence in scored_evidence[:5]:
+
+        conflicts = getattr(
+            evidence,
+            "fact_match",
+            {}
+        ).get(
+            "conflicts",
+            []
+        )
+
+        if (
+
+            evidence.nli_label == "CONTRADICTION"
+
+            and
+
+            (
+                "year_conflict" in conflicts
+                or
+                "number_conflict" in conflicts
+                or
+                "negation_conflict" in conflicts
+                or
+                "action_conflict" in conflicts
+            )
+
+            and
+
+            evidence.final_score >= 25
+
+        ):
+
+            strong_conflict_count += 1
+
+    if (
+        strong_conflict_count >= 2
+        and
+        contradiction_score > entailment_score
     ):
 
         verdict = "CONTRADICTION"
 
     # ==========================================
-    # OVERRIDE NEUTRAL
+    # HIGH SUPPORT CONSENSUS
     # ==========================================
 
     if (
-
-        getattr(
-            top,
-            "final_score",
-            0.0
-        ) > 25
-
-        and
-
-        getattr(
-            top,
-            "alignment_score",
-            0.0
-        ) > 0.40
-
-        and
-
-        getattr(
-            top,
-            "fact_score",
-            0.0
-        ) > 12
-
-    ):
-
-        if top.nli_label == "NEUTRAL":
-
-            verdict = "ENTAILMENT"
-
-    # ==========================================
-    # HIGH CONSENSUS OVERRIDE
-    # ==========================================
-
-    if (
-
-        entailment_score > neutral_score
-
-        and
 
         entailment_score > contradiction_score
 
         and
 
-        entailment_score > 40
+        entailment_score > neutral_score
+
+        and
+
+        entailment_score >= 40
 
     ):
 
         verdict = "ENTAILMENT"
 
     # ==========================================
+    # HIGH CONTRADICTION CONSENSUS
+    # ==========================================
+
+    if (
+
+        contradiction_score > entailment_score
+
+        and
+
+        contradiction_score > neutral_score
+
+        and
+
+        contradiction_score >= 40
+
+    ):
+
+        verdict = "CONTRADICTION"
+
+    # ==========================================
     # CONTRADICTION INSTABILITY CHECK
     # ==========================================
-    real_contradictions = [
-        pair for pair in contradiction_pairs
-
-        if (
-            pair["label_a"] == "CONTRADICTION"
-            or
-            pair["label_b"] == "CONTRADICTION"
-        )
-    ]
 
     if (
 
@@ -828,6 +767,7 @@ def aggregate_verdicts(
         and
 
         verdict == "ENTAILMENT"
+
     ):
 
         verdict = "NEUTRAL"
@@ -873,6 +813,31 @@ def aggregate_verdicts(
         and
 
         verdict == "ENTAILMENT"
+
+    ):
+
+        verdict = "NEUTRAL"
+
+    # ==========================================
+    # HEAVILY MIXED EVIDENCE
+    # ==========================================
+
+    if (
+
+        entailment_score >= 25
+
+        and
+
+        contradiction_score >= 25
+
+        and
+
+        abs(
+            entailment_score
+            -
+            contradiction_score
+        ) < 15
+
     ):
 
         verdict = "NEUTRAL"

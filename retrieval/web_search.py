@@ -1,6 +1,6 @@
 import os
 import requests
-
+import feedparser
 from dotenv import load_dotenv
 
 from ddgs import DDGS
@@ -102,7 +102,7 @@ def search_duckduckgo(
                                 ""
                             ),
 
-                            content=result.get(
+                            content=sub_result.get(
                                 "body",
                                 ""
                             ),
@@ -142,10 +142,123 @@ def search_duckduckgo(
         return []
     return evidence_list
 
+# =====================================================
+# RSS SEARCH
+# =====================================================
+
+
+RSS_FEEDS = [
+
+    "https://nagalandpost.com/feed/",
+
+    "https://easternmirrornagaland.com/feed/",
+
+    "https://morungexpress.com/feed"
+]
+
+
+def search_rss(
+    query,
+    max_results=5
+):
+
+    evidence_list = []
+
+    query_words = set(
+        query.lower().split()
+    )
+
+    try:
+
+        for feed_url in RSS_FEEDS:
+
+            feed = feedparser.parse(
+                feed_url
+            )
+
+            for entry in feed.entries:
+
+                title = getattr(
+                    entry,
+                    "title",
+                    ""
+                )
+
+                summary = getattr(
+                    entry,
+                    "summary",
+                    ""
+                )
+
+                content = (
+                    title
+                    + " "
+                    + summary
+                )
+
+                overlap = len(
+
+                    query_words
+                    &
+                    set(
+                        content.lower().split()
+                    )
+                )
+
+                if overlap == 0:
+
+                    continue
+
+                evidence = Evidence(
+
+                    title=title,
+
+                    content=summary,
+
+                    source_url=getattr(
+                        entry,
+                        "link",
+                        ""
+                    )
+                )
+
+                evidence_list.append(
+                    (
+                        overlap,
+                        evidence
+                    )
+                )
+
+        evidence_list.sort(
+            key=lambda x: x[0],
+            reverse=True
+        )
+
+        return [
+
+            evidence
+
+            for _, evidence
+
+            in evidence_list[
+                :max_results
+            ]
+        ]
+
+    except Exception as e:
+
+        print(
+            "\nRSS ERROR:"
+        )
+
+        print(str(e))
+
+        return []
 
 # =====================================================
 # TAVILY SEARCH
 # =====================================================
+
 
 def search_tavily(
     query,
@@ -354,7 +467,9 @@ def search_google_cse(
                 evidence
             )
 
-    except:
+    except Exception as e:
+        print("\nGOOGLE CSE ERROR")
+        print(str(e))
 
         return []
 
@@ -471,6 +586,15 @@ def search_web(
     if engine == "duckduckgo":
 
         return search_duckduckgo(
+
+            query=query,
+
+            max_results=max_results
+        )
+
+    elif engine == "rss":
+
+        return search_rss(
 
             query=query,
 

@@ -14,6 +14,9 @@ from types import SimpleNamespace
 from analysis.verdict_explainer import (
     generate_verdict_explanation
 )
+from understanding.claim_decomposer import(
+    decompose_claim
+)
 
 # =====================================================
 # MAIN VERIFICATION PIPELINE
@@ -39,14 +42,9 @@ class VerificationPipeline:
         # BASIC DECOMPOSITION PLACEHOLDER
         # =============================================
 
-        decomposition = {
-
-            "entities": [],
-
-            "noun_chunks": [],
-
-            "actions": []
-        }
+        decomposition = decompose_claim(
+            claim
+        )
 
         # =============================================
         # QUERY GENERATION

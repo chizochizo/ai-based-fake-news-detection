@@ -1,6 +1,5 @@
 from understanding.claim_classifier import (
-    classify_claim,
-    determine_retrieval_strategy
+    classify_claim
 )
 
 from retrieval.evidence_deduplicator import (
@@ -29,6 +28,8 @@ MIN_EVIDENCE_COUNT = 5
 MIN_STRONG_MATCHES = 3
 
 MIN_RERANK_SCORE = 0.60
+
+VERY_STRONG_SCORE = 0.85
 
 MAX_TOTAL_EVIDENCE = 30
 
@@ -106,9 +107,6 @@ def run_engine(
 
     except Exception as e:
 
-        print("\n[SEARCH ERROR]")
-        print(str(e))
-
         return []
 
 
@@ -181,6 +179,27 @@ def extract_strong_matches(
 
 
 # =====================================================
+# VERY STRONG MATCH CHECK
+# =====================================================
+
+def has_very_strong_match(
+    evidence
+):
+
+    for item in evidence:
+
+        if getattr(
+            item,
+            "reranker_score",
+            0
+        ) >= VERY_STRONG_SCORE:
+
+            return True
+
+    return False
+
+
+# =====================================================
 # RETRIEVAL SATURATION CHECK
 # =====================================================
 
@@ -195,7 +214,7 @@ def retrieval_saturated(
         previous_count
     )
 
-    if growth <= 2:
+    if growth <= 0:
 
         return True
 
@@ -207,39 +226,66 @@ def retrieval_saturated(
 # =====================================================
 
 def determine_search_engines(
-    strategy
+    claim_type
 ):
 
-    engines = ["google"]
+    claim_type = str(
+        claim_type
+    ).lower()
 
-    if strategy.get(
-        "use_news_api",
-        False
-    ):
+    if claim_type == "factual":
 
-        engines.append(
-            "bing"
-        )
-
-    if strategy.get(
-        "use_factcheck_api",
-        False
-    ):
-
-        engines.append(
+        return [
+            "tavily",
+            "serper",
             "duckduckgo"
-        )
+        ]
 
-    if strategy.get(
-        "use_rss",
-        False
-    ):
+    elif claim_type == "news":
 
-        engines.append(
-            "google_news"
-        )
+        return [
+            "serper",
+            "tavily",
+            "duckduckgo"
+        ]
 
-    return list(set(engines))
+    elif claim_type == "political":
+
+        return [
+            "serper",
+            "tavily",
+            "duckduckgo"
+        ]
+
+    elif claim_type == "institutional":
+
+        return [
+            "tavily",
+            "serper",
+            "duckduckgo"
+        ]
+
+    elif claim_type == "event":
+
+        return [
+            "serper",
+            "tavily",
+            "duckduckgo"
+        ]
+
+    elif claim_type == "regional":
+
+        return [
+            "rss",
+            "google_cse",
+            "youtube"
+        ]
+
+    return [
+        "tavily",
+        "serper",
+        "duckduckgo"
+    ]
 
 
 # =====================================================
@@ -258,24 +304,34 @@ def retrieve_evidence(
     claim_info = classify_claim(
         claim
     )
+    print(claim_info)
 
     claim_type = claim_info.get(
         "claim_types",
         ["general"]
     )
 
-    strategy = claim_info.get(
-        "retrieval_strategy",
-        {}
-    )
-
     # ==========================================
     # ENGINE SELECTION
     # ==========================================
-
-    engines = [
-        "duckduckgo"
+    claim_types_lower = [
+        str(t).lower()
+        for t in claim_type
     ]
+    if "regional" in claim_types_lower:
+
+        primary_type = "regional"
+
+    else:
+
+        primary_type = claim_types_lower[0]
+
+    engines = determine_search_engines(
+        primary_type
+    )
+    print("\nCLAIM TYPES:", claim_type)
+    print("PRIMARY TYPE:", primary_type)
+    print("ENGINES:", engines)
 
     # ==========================================
     # QUERY PRIORITIZATION
@@ -396,6 +452,14 @@ def retrieve_evidence(
             claim,
             bm25_ranked
         )
+
+        if has_very_strong_match(
+            reranked_preview
+        ):
+
+            all_evidence = reranked_preview
+
+            break
 
         # --------------------------------------
         # STRONG MATCHES

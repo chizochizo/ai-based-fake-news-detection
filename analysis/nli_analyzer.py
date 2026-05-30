@@ -80,7 +80,7 @@ def clean_evidence_text(text):
 
     if len(text) > 1200:
 
-        text = text[:1200]
+        text = text[:1800]
 
     return text
 
@@ -91,7 +91,8 @@ def clean_evidence_text(text):
 
 def extract_focus_sentence(
     claim,
-    evidence_text
+    evidence_text,
+    top_k=3
 ):
 
     claim_words = set(
@@ -101,11 +102,12 @@ def extract_focus_sentence(
         .split()
     )
 
-    sentences = evidence_text.split(".")
-
-    best_sentence = evidence_text
-
-    best_overlap = 0
+    sentences = [
+        s.strip()
+        for s in evidence_text.split(".")
+        if s.strip()
+    ]
+    scored = []
 
     for sentence in sentences:
 
@@ -118,14 +120,29 @@ def extract_focus_sentence(
             &
             sentence_words
         )
+        scored.append(
+            (
+                overlap,
+                sentence
+            )
+        )
+    scored.sort(
+        key=lambda x: x[0],
+        reverse=True
+    )
+    selected = [
+        sentence
+        for overlap, sentence
+        in scored[:top_k]
+        if overlap > 0
+    ]
+    if not selected:
 
-        if overlap > best_overlap:
+        return evidence_text[:1000]
 
-            best_overlap = overlap
-
-            best_sentence = sentence
-
-    return best_sentence.strip()
+    return ". ".join(
+        selected
+    )
 
 
 # =====================================================
@@ -154,15 +171,15 @@ def calibrate_nli_label(
 
         and
 
-        confidence >= 0.45
+        confidence >= 0.75
 
         and
 
-        alignment_score >= 0.60
+        alignment_score >= 0.70
 
         and
 
-        fact_score >= 10
+        fact_score >= 15
 
     ):
 
@@ -257,7 +274,8 @@ def analyze_claim_evidence(
             focused_evidence = (
                 extract_focus_sentence(
                     normalized_claim,
-                    cleaned_evidence
+                    cleaned_evidence,
+                    top_k=3
                 )
             )
 
