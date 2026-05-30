@@ -11,11 +11,14 @@ from analysis.report_generator import (
     build_report
 )
 from types import SimpleNamespace
-
+from analysis.verdict_explainer import (
+    generate_verdict_explanation
+)
 
 # =====================================================
 # MAIN VERIFICATION PIPELINE
 # =====================================================
+
 
 class VerificationPipeline:
 
@@ -83,6 +86,17 @@ class VerificationPipeline:
             evidence
         )
 
+        explanation = generate_verdict_explanation(
+
+            claim=claim,
+
+            verdict=verdict_result.get(
+
+                "verdict",
+                "NEUTRAL"
+            ),
+            evidence_list=evidence
+        )
         # =============================================
         # BUILD STATE OBJECT
         # =============================================
@@ -106,6 +120,7 @@ class VerificationPipeline:
                 "confidence",
                 0.0
             ),
+            verdict_explanation=explanation,
 
             decomposition=decomposition,
 

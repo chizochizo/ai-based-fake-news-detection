@@ -1,6 +1,9 @@
 import traceback
 from transformers import pipeline
 
+from understanding.claim_normalizer import (
+    normalize_claim
+)
 
 # =====================================================
 # LOAD NLI MODEL
@@ -14,7 +17,11 @@ nli_pipeline = pipeline(
 
     model="roberta-large-mnli",
 
-    device=-1
+    device=-1,
+
+    truncation=True,
+
+    max_length=512
 )
 
 print("\nNLI MODEL LOADED\n")
@@ -41,6 +48,87 @@ LABEL_MAP = {
 
 
 # =====================================================
+# EVIDENCE CLEANING
+# =====================================================
+
+def clean_evidence_text(text):
+
+    if not text:
+
+        return ""
+
+    # ==========================================
+    # REMOVE EXCESS WHITESPACE
+    # ==========================================
+
+    text = " ".join(
+        text.split()
+    )
+
+    # ==========================================
+    # REMOVE URL-LIKE GARBAGE
+    # ==========================================
+
+    text = text.replace(
+        "\n",
+        " "
+    )
+
+    # ==========================================
+    # HARD TRUNCATION
+    # ==========================================
+
+    if len(text) > 1200:
+
+        text = text[:1200]
+
+    return text
+
+
+# =====================================================
+# SENTENCE FOCUS EXTRACTION
+# =====================================================
+
+def extract_focus_sentence(
+    claim,
+    evidence_text
+):
+
+    claim_words = set(
+
+        normalize_claim(claim)
+        .lower()
+        .split()
+    )
+
+    sentences = evidence_text.split(".")
+
+    best_sentence = evidence_text
+
+    best_overlap = 0
+
+    for sentence in sentences:
+
+        sentence_words = set(
+            sentence.lower().split()
+        )
+
+        overlap = len(
+            claim_words
+            &
+            sentence_words
+        )
+
+        if overlap > best_overlap:
+
+            best_overlap = overlap
+
+            best_sentence = sentence
+
+    return best_sentence.strip()
+
+
+# =====================================================
 # LABEL CALIBRATION
 # =====================================================
 
@@ -57,7 +145,7 @@ def calibrate_nli_label(
     )
 
     # ==========================================
-    # ENTAILMENT BOOSTING
+    # STRONG ENTAILMENT BOOST
     # ==========================================
 
     if (
@@ -66,16 +154,31 @@ def calibrate_nli_label(
 
         and
 
-        alignment_score > 0.45
+        confidence >= 0.45
 
         and
 
-        fact_score > 15
+        alignment_score >= 0.60
 
         and
 
-        confidence > 0.90
+        fact_score >= 10
 
+    ):
+
+        label = "ENTAILMENT"
+
+    # ==========================================
+    # VERY STRONG MATCH OVERRIDE
+    # ==========================================
+
+    if (
+
+        alignment_score >= 0.75
+
+        and
+
+        fact_score >= 15
     ):
 
         label = "ENTAILMENT"
@@ -90,7 +193,7 @@ def calibrate_nli_label(
 
         and
 
-        alignment_score < 0.45
+        alignment_score < 0.50
 
     ):
 
@@ -110,21 +213,83 @@ def analyze_claim_evidence(
 
     analyzed = []
 
+    normalized_claim = normalize_claim(
+        claim
+    )
+
+    print("\n[NORMALIZED CLAIM]")
+    print(normalized_claim)
+
+    # =================================================
+    # CLAIM TRUNCATION
+    # =================================================
+
+    normalized_claim = normalized_claim[
+        :300
+    ]
+
     for evidence in evidence_list:
 
         try:
 
-            print("\n[NLI INPUT]")
-            print("CLAIM:", claim)
-            print("EVIDENCE:", evidence.content)
+            # ==========================================
+            # SAFETY DEFAULTS
+            # ==========================================
 
-            result = nli_pipeline(
-                {
-                    "text": claim,
-                    "text_pair": evidence.content
-                }
+            evidence.nli_label = "NEUTRAL"
+
+            evidence.nli_confidence = 0.0
+
+            raw_content = getattr(
+                evidence,
+                "content",
+                ""
             )
+
+            normalized_evidence = normalize_claim(
+                raw_content
+            )
+
+            cleaned_evidence = clean_evidence_text(
+                normalized_evidence
+            )
+
+            focused_evidence = (
+                extract_focus_sentence(
+                    normalized_claim,
+                    cleaned_evidence
+                )
+            )
+
+            # ==========================================
+            # FINAL NLI INPUT
+            # ==========================================
+
+            premise = focused_evidence
+
+            hypothesis = normalized_claim
+
+            print("\n[NLI INPUT]")
+            print("HYPOTHESIS:", hypothesis)
+            print("PREMISE:", premise)
+
+            # ==========================================
+            # RUN NLI
+            # ==========================================
+
+            pair_input = (
+                premise
+                +
+                " </s></s> "
+                +
+                hypothesis
+            )
+            result = nli_pipeline(
+                pair_input
+            )
+
             if isinstance(result, list):
+
                 result = result[0]
 
             print("\n[NLI RAW RESULT]")
@@ -141,25 +306,24 @@ def analyze_claim_evidence(
                     0.0
                 )
             )
+
+            alignment_score = getattr(
+                evidence,
+                "alignment_score",
+                0.0
+            )
+
+            fact_score = getattr(
+                evidence,
+                "fact_score",
+                0.0
+            )
+
             print("\n[NLI DEBUG]")
             print("RAW LABEL:", raw_label)
             print("CONFIDENCE:", confidence)
-            print(
-                "ALIGNMENT:",
-                getattr(
-                    evidence,
-                    "alignment_score",
-                    0
-                )
-            )
-            print(
-                "FACT SCORE:",
-                getattr(
-                    evidence,
-                    "fact_score",
-                    0
-                )
-            )
+            print("ALIGNMENT:", alignment_score)
+            print("FACT SCORE:", fact_score)
 
             calibrated_label = calibrate_nli_label(
 
@@ -167,20 +331,12 @@ def analyze_claim_evidence(
 
                 confidence=confidence,
 
-                alignment_score=getattr(
-                    evidence,
-                    "alignment_score",
-                    0
-                ),
+                alignment_score=alignment_score,
 
-                fact_score=getattr(
-                    evidence,
-                    "fact_score",
-                    0
-                )
+                fact_score=fact_score
             )
-            print(
 
+            print(
                 "CALIBRATED LABEL:",
                 calibrated_label
             )

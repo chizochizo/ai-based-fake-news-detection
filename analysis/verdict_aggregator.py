@@ -84,6 +84,24 @@ def analyze_clusters(clusters):
 
         for evidence in cluster:
 
+            # ==========================================
+            # SAFETY DEFAULTS
+            # ==========================================
+
+            if not hasattr(
+                evidence,
+                "nli_label"
+            ):
+
+                evidence.nli_label = "NEUTRAL"
+
+            if not hasattr(
+                evidence,
+                "final_score"
+            ):
+
+                evidence.final_score = 0.0
+
             labels[
                 evidence.nli_label
             ] += 1
@@ -93,7 +111,11 @@ def analyze_clusters(clusters):
             )
 
             domains.add(
-                evidence.source_url
+                getattr(
+                    evidence,
+                    "source_url",
+                    "unknown"
+                )
             )
 
         dominant_label = max(
@@ -141,6 +163,56 @@ def aggregate_verdicts(
 
     for evidence in evidence_list:
 
+        # ==========================================
+        # SAFETY DEFAULTS
+        # ==========================================
+
+        if not hasattr(
+            evidence,
+            "nli_label"
+        ):
+
+            evidence.nli_label = "NEUTRAL"
+
+        if not hasattr(
+            evidence,
+            "nli_confidence"
+        ):
+
+            evidence.nli_confidence = 0.0
+
+        if not hasattr(
+            evidence,
+            "fact_match"
+        ):
+
+            evidence.fact_match = {}
+
+        if not hasattr(
+            evidence,
+            "alignment_score"
+        ):
+
+            evidence.alignment_score = 0.0
+
+        if not hasattr(
+            evidence,
+            "fact_score"
+        ):
+
+            evidence.fact_score = 0.0
+
+        if not hasattr(
+            evidence,
+            "final_score"
+        ):
+
+            evidence.final_score = 0.0
+
+        # ==========================================
+        # EVIDENCE SCORING
+        # ==========================================
+
         scored = compute_evidence_score(
 
             claim,
@@ -179,7 +251,11 @@ def aggregate_verdicts(
 
     scored_evidence.sort(
 
-        key=lambda x: x.final_score,
+        key=lambda x: getattr(
+            x,
+            "final_score",
+            0.0
+        ),
 
         reverse=True
     )
@@ -207,10 +283,6 @@ def aggregate_verdicts(
     neutral_cluster_boost = 0
 
     for cluster in cluster_analysis:
-
-        # ------------------------------
-        # MULTI-SOURCE BONUS
-        # ------------------------------
 
         source_bonus = min(
             cluster["unique_sources"],
@@ -263,22 +335,26 @@ def aggregate_verdicts(
             evidence_b = top_window[j]
 
             conflicts_a = (
-                evidence_a.fact_match.get(
+                getattr(
+                    evidence_a,
+                    "fact_match",
+                    {}
+                ).get(
                     "conflicts",
                     []
                 )
             )
 
             conflicts_b = (
-                evidence_b.fact_match.get(
+                getattr(
+                    evidence_b,
+                    "fact_match",
+                    {}
+                ).get(
                     "conflicts",
                     []
                 )
             )
-
-            # ----------------------------------
-            # OPPOSITE NLI SIGNALS
-            # ----------------------------------
 
             opposite_labels = (
 
@@ -308,10 +384,6 @@ def aggregate_verdicts(
                     "ENTAILMENT"
                 )
             )
-
-            # ----------------------------------
-            # STRONG FACT CONFLICTS
-            # ----------------------------------
 
             strong_conflict = (
 
@@ -354,19 +426,23 @@ def aggregate_verdicts(
                 in conflicts_b
             )
 
-            # ----------------------------------
-            # REGISTER CONTRADICTION
-            # ----------------------------------
-
             if opposite_labels or strong_conflict:
 
                 contradiction_pairs.append({
 
                     "evidence_a":
-                    evidence_a.title,
+                    getattr(
+                        evidence_a,
+                        "title",
+                        "unknown"
+                    ),
 
                     "evidence_b":
-                    evidence_b.title,
+                    getattr(
+                        evidence_b,
+                        "title",
+                        "unknown"
+                    ),
 
                     "label_a":
                     evidence_a.nli_label,
@@ -424,7 +500,11 @@ def aggregate_verdicts(
             entailment_count += 1
 
             entailment_score += (
-                evidence.final_score
+                getattr(
+                    evidence,
+                    "final_score",
+                    0.0
+                )
             )
 
         elif evidence.nli_label == "CONTRADICTION":
@@ -432,7 +512,11 @@ def aggregate_verdicts(
             contradiction_count += 1
 
             contradiction_score += (
-                evidence.final_score
+                getattr(
+                    evidence,
+                    "final_score",
+                    0.0
+                )
             )
 
         else:
@@ -440,7 +524,11 @@ def aggregate_verdicts(
             neutral_count += 1
 
             neutral_score += (
-                evidence.final_score
+                getattr(
+                    evidence,
+                    "final_score",
+                    0.0
+                )
             )
 
     # ==========================================
@@ -498,12 +586,19 @@ def aggregate_verdicts(
     if len(scored_evidence) > 1:
 
         second_score = (
-            scored_evidence[1]
-            .final_score
+            getattr(
+                scored_evidence[1],
+                "final_score",
+                0.0
+            )
         )
 
     margin = (
-        top.final_score
+        getattr(
+            top,
+            "final_score",
+            0.0
+        )
         -
         second_score
     )
@@ -528,11 +623,19 @@ def aggregate_verdicts(
 
             and
 
-            e.final_score >= 30
+            getattr(
+                e,
+                "final_score",
+                0.0
+            ) >= 30
 
             and
 
-            e.alignment_score >= 0.60
+            getattr(
+                e,
+                "alignment_score",
+                0.0
+            ) >= 0.60
 
         )
     ]
@@ -555,11 +658,19 @@ def aggregate_verdicts(
 
             and
 
-            e.final_score >= 30
+            getattr(
+                e,
+                "final_score",
+                0.0
+            ) >= 30
 
             and
 
-            e.alignment_score >= 0.60
+            getattr(
+                e,
+                "alignment_score",
+                0.0
+            ) >= 0.60
 
         )
     ]
@@ -567,6 +678,19 @@ def aggregate_verdicts(
     if len(strong_contradictions) >= 1:
 
         verdict = "CONTRADICTION"
+
+    # ---
+    # SINGLE strong evidence override
+    # ---
+    if (
+        top.nli_label == "ENTAILMENT"
+        and
+        top.nli_confidence >= 0.90
+        and
+        top.final_score >= 35
+        and top.alignment_score >= 0.50
+    ):
+        verdict = "ENTAILMENT"
 
     # ==========================================
     # FALLBACK MAJORITY LOGIC
@@ -592,11 +716,19 @@ def aggregate_verdicts(
 
         and
 
-        top.alignment_score > 0.60
+        getattr(
+            top,
+            "alignment_score",
+            0.0
+        ) > 0.60
 
         and
 
-        top.fact_score > 10
+        getattr(
+            top,
+            "fact_score",
+            0.0
+        ) > 10
 
     ):
 
@@ -612,7 +744,11 @@ def aggregate_verdicts(
 
         and
 
-        top.alignment_score > 0.60
+        getattr(
+            top,
+            "alignment_score",
+            0.0
+        ) > 0.60
 
     ):
 
@@ -624,15 +760,27 @@ def aggregate_verdicts(
 
     if (
 
-        top.final_score > 25
+        getattr(
+            top,
+            "final_score",
+            0.0
+        ) > 25
 
         and
 
-        top.alignment_score > 0.65
+        getattr(
+            top,
+            "alignment_score",
+            0.0
+        ) > 0.40
 
         and
 
-        top.fact_score > 12
+        getattr(
+            top,
+            "fact_score",
+            0.0
+        ) > 12
 
     ):
 
@@ -663,10 +811,19 @@ def aggregate_verdicts(
     # ==========================================
     # CONTRADICTION INSTABILITY CHECK
     # ==========================================
+    real_contradictions = [
+        pair for pair in contradiction_pairs
+
+        if (
+            pair["label_a"] == "CONTRADICTION"
+            or
+            pair["label_b"] == "CONTRADICTION"
+        )
+    ]
 
     if (
 
-        len(contradiction_pairs) >= 3
+        len(contradiction_pairs) >= 2
 
         and
 
@@ -730,7 +887,11 @@ def aggregate_verdicts(
 
         (
             (
-                top.final_score
+                getattr(
+                    top,
+                    "final_score",
+                    0.0
+                )
                 /
                 40
             )

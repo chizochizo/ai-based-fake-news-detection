@@ -1,0 +1,7601 @@
+
+
+================================================================================
+FILE: .\app.py
+================================================================================
+
+import gradio as gr
+
+from orchestrator.pipeline_controller import (
+    VerificationPipeline
+)
+
+
+# =====================================================
+# INITIALIZE PIPELINE
+# =====================================================
+
+pipeline = VerificationPipeline()
+
+
+# =====================================================
+# MAIN VERIFICATION FUNCTION
+# =====================================================
+
+def verify_claim(claim):
+
+    if not claim.strip():
+
+        return (
+            "Please enter a claim.",
+            "",
+            "",
+            "",
+            "",
+            ""
+        )
+
+    try:
+
+        result = pipeline.run(claim)
+
+        # ==========================================
+        # FINAL VERDICT
+        # ==========================================
+
+        verdict = (
+            f"### FINAL VERDICT\n\n"
+            f"**{result.final_verdict}**\n\n"
+            f"Confidence: "
+            f"{round(result.confidence_score, 3)}\n\n"
+            f"## Explanation\n\n"
+            f"{result.verdict_explanation}"
+        )
+
+        # ==========================================
+        # REPORT
+        # ==========================================
+
+        report = result.final_report
+
+        # ==========================================
+        # QUERIES
+        # ==========================================
+
+        queries = "\n".join(
+            result.retrieval_queries
+        )
+
+        # ==========================================
+        # TOP EVIDENCE
+        # ==========================================
+
+        evidence_output = ""
+
+        for idx, evidence in enumerate(
+            result.ranked_evidence[:5],
+            start=1
+        ):
+
+            evidence_output += (
+                f"## Evidence {idx}\n\n"
+
+                f"### Title\n"
+                f"{evidence.title}\n\n"
+
+                f"### Content\n"
+                f"{evidence.content}\n\n"
+
+                f"### Source\n"
+                f"{evidence.source_url}\n\n"
+
+                f"### Scores\n"
+                f"- Reranker: "
+                f"{round(getattr(evidence, 'reranker_score', 0), 3)}\n"
+
+                f"- Alignment: "
+                f"{round(getattr(evidence, 'alignment_score', 0), 3)}\n"
+
+                f"- Fact Score: "
+                f"{round(getattr(evidence, 'fact_score', 0), 3)}\n"
+
+                f"- Final Score: "
+                f"{round(getattr(evidence, 'final_score', 0), 3)}\n\n"
+
+                f"{'-'*60}\n\n"
+            )
+
+        # ==========================================
+        # NLI ANALYSIS
+        # ==========================================
+
+        nli_output = ""
+
+        for idx, evidence in enumerate(
+            result.nli_results[:5],
+            start=1
+        ):
+
+            nli_output += (
+                f"## NLI Result {idx}\n\n"
+
+                f"### Label\n"
+                f"{evidence.nli_label}\n\n"
+
+                f"### Confidence\n"
+                f"{round(evidence.nli_confidence, 3)}\n\n"
+
+                f"### Alignment\n"
+                f"{round(getattr(evidence, 'alignment_score', 0), 3)}\n\n"
+
+                f"### Fact Score\n"
+                f"{round(getattr(evidence, 'fact_score', 0), 3)}\n\n"
+
+                f"### Final Score\n"
+                f"{round(getattr(evidence, 'final_score', 0), 3)}\n\n"
+
+                f"### Content\n"
+                f"{evidence.content[:500]}\n\n"
+
+                f"{'-'*60}\n\n"
+            )
+
+        # ==========================================
+        # DEBUG INFO
+        # ==========================================
+
+        debug_output = (
+            f"## CLAIM FRAME\n\n"
+            f"{result.claim_frame}\n\n"
+
+            f"## DECOMPOSITION\n\n"
+            f"{result.decomposition}\n\n"
+
+            f"## ENTITIES\n\n"
+            f"{result.entities}\n"
+        )
+
+        return (
+
+            verdict,
+
+            report,
+
+            queries,
+
+            evidence_output,
+
+            nli_output,
+
+            debug_output
+        )
+
+    except Exception as e:
+
+        return (
+            f"Error: {str(e)}",
+            "",
+            "",
+            "",
+            "",
+            ""
+        )
+
+
+# =====================================================
+# GRADIO UI
+# =====================================================
+
+with gr.Blocks(
+    title="AI Fake News Verification System"
+) as demo:
+
+    gr.Markdown(
+        """
+# AI Fake News Verification System
+
+Advanced Retrieval-Augmented Semantic
+Fake News Detection & Verification
+"""
+    )
+
+    with gr.Row():
+
+        claim_input = gr.Textbox(
+
+            label="Enter Claim",
+
+            placeholder=(
+                "Type a news claim here..."
+            ),
+
+            lines=4
+        )
+
+    verify_button = gr.Button(
+        "Verify Claim"
+    )
+
+    with gr.Tab("Final Verdict"):
+
+        verdict_output = gr.Markdown()
+
+    with gr.Tab("Verification Report"):
+
+        report_output = gr.Markdown()
+
+    with gr.Tab("Generated Queries"):
+
+        queries_output = gr.Textbox(
+            lines=10
+        )
+
+    with gr.Tab("Top Evidence"):
+
+        evidence_output = gr.Markdown()
+
+    with gr.Tab("NLI Analysis"):
+
+        nli_output = gr.Markdown()
+
+    with gr.Tab("Debug Information"):
+
+        debug_output = gr.Markdown()
+
+    verify_button.click(
+
+        fn=verify_claim,
+
+        inputs=claim_input,
+
+        outputs=[
+
+            verdict_output,
+
+            report_output,
+
+            queries_output,
+
+            evidence_output,
+
+            nli_output,
+
+            debug_output
+        ]
+    )
+
+
+# =====================================================
+# LAUNCH
+# =====================================================
+
+if __name__ == "__main__":
+
+    demo.launch(
+        share=True
+    )
+
+
+================================================================================
+FILE: .\bundle.py
+================================================================================
+
+import os
+import zipfile
+
+OUTPUT_TXT = "FULL_PROJECT.txt"
+OUTPUT_ZIP = "FULL_PROJECT.zip"
+
+# Added "venv" to completely lock out library internal codes
+EXCLUDED_FOLDERS = {
+    "venv",
+    "checker_env",
+    "__pycache__",
+    ".git",
+    ".cache",
+    ".gradio",
+    "cache"
+}
+
+# Explicitly filter out meta files, bundles, and environment files
+EXCLUDED_EXTENSIONS = {
+    ".txt",
+    ".zip",
+    ".env",
+    ".pyc",
+    ".pyo"
+}
+
+# ==========================================================
+# BUILD LEGIT PROJECT SNAPSHOT ONLY
+# ==========================================================
+
+with open(OUTPUT_TXT, "w", encoding="utf-8") as out:
+    for root, dirs, files in os.walk("."):
+
+        # --------------------------------------------------
+        # SKIP VIRTUAL ENVIRONMENTS AND INTERNAL CACHES
+        # --------------------------------------------------
+        dirs[:] = [d for d in dirs if d not in EXCLUDED_FOLDERS]
+
+        for file in files:
+            # Skip if file has an excluded extension (like requirements.txt or .env)
+            if any(file.endswith(ext) for ext in EXCLUDED_EXTENSIONS):
+                continue
+
+            # Only target your actual Python source code files
+            if not file.endswith(".py"):
+                continue
+
+            path = os.path.join(root, file)
+            separator = "=" * 80
+
+            out.write(f"\n\n{separator}\n")
+            out.write(f"FILE: {path}\n")
+            out.write(f"{separator}\n\n")
+
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    out.write(f.read())
+            except Exception as e:
+                out.write(f"\nERROR READING FILE: {e}\n")
+
+# ==========================================================
+# CREATE CLEAN ZIP
+# ==========================================================
+with zipfile.ZipFile(OUTPUT_ZIP, "w", zipfile.ZIP_DEFLATED) as zipf:
+    zipf.write(OUTPUT_TXT)
+
+print("\nDONE!")
+print(f"Created clean snapshot: {OUTPUT_TXT}")
+print(f"Created clean zip archive: {OUTPUT_ZIP}")
+
+
+================================================================================
+FILE: .\config.py
+================================================================================
+
+
+
+================================================================================
+FILE: .\debug_pipeline.py
+================================================================================
+
+
+# debug_pipeline.py
+
+from orchestrator.pipeline_controller import (
+    VerificationPipeline
+)
+
+print("\n===================")
+print("STARTING TEST")
+print("===================\n")
+
+pipeline = VerificationPipeline()
+
+result = pipeline.run(
+    "mount saramati is the highest mountain in nagaland"
+)
+
+print("\n===================")
+print("PIPELINE FINISHED")
+print("===================\n")
+
+print("VERDICT:")
+print(result.final_verdict)
+
+print("\nCONFIDENCE:")
+print(result.confidence_score)
+
+print("\nQUERIES:")
+print(result.retrieval_queries)
+
+print("\nEVIDENCE COUNT:")
+print(len(result.ranked_evidence))
+
+
+================================================================================
+FILE: .\test_search.py
+================================================================================
+
+
+# retrieval/web_search.py
+
+from types import SimpleNamespace
+
+
+# =====================================================
+# SIMPLE TEST SEARCH ENGINE
+# =====================================================
+
+def search_web(
+    query,
+    engine="google"
+):
+
+    print("\n======================")
+    print("SEARCH WEB CALLED")
+    print("======================")
+
+    print("ENGINE:", engine)
+    print("QUERY:", query)
+
+    # =================================================
+    # MOCK EVIDENCE
+    # =================================================
+
+    results = [
+
+        SimpleNamespace(
+
+            title="Wikipedia - Mount Saramati",
+
+            content=(
+                "Mount Saramati is the highest "
+                "mountain peak in Nagaland "
+                "with an elevation of "
+                "3841 metres."
+            ),
+
+            source_url=(
+                "https://en.wikipedia.org/"
+                "wiki/Mount_Saramati"
+            ),
+
+            reranker_score=0.0
+        ),
+
+        SimpleNamespace(
+
+            title="Nagaland Tourism",
+
+            content=(
+                "Mount Saramati is located "
+                "on the border of Nagaland "
+                "and Myanmar."
+            ),
+
+            source_url=(
+                "https://tourism.nagaland.gov.in"
+            ),
+
+            reranker_score=0.0
+        )
+    ]
+
+    print("\nRETURNING:", len(results))
+
+    return results
+
+
+================================================================================
+FILE: .\test_web_search.py
+================================================================================
+
+
+from retrieval.web_search import search_web
+
+
+print("\n====================")
+print("TESTING WEB SEARCH")
+print("====================\n")
+
+
+results = search_web(
+
+    query="mount saramati is the highest mountain in nagaland",
+
+    engine="duckduckgo"
+)
+
+
+print("\nRESULTS:\n")
+
+for item in results:
+
+    print(item)
+
+    print("\n------------------\n")
+
+
+print("TOTAL:", len(results))
+
+
+================================================================================
+FILE: .\analysis\claim_frame_extractor.py
+================================================================================
+
+import re
+
+
+ACTION_NORMALIZATION = {
+
+    "hosts": "conduct",
+
+    "hosted": "conduct",
+
+    "hosting": "conduct",
+
+    "conducted": "conduct",
+
+    "organized": "conduct",
+
+    "organised": "conduct",
+
+    "holds": "conduct",
+
+    "held": "conduct",
+
+    "launched": "launch",
+
+    "announced": "announce",
+
+    "reported": "report"
+}
+
+
+def normalize_action(action):
+
+    action = action.lower()
+
+    return ACTION_NORMALIZATION.get(
+
+        action,
+
+        action
+    )
+
+
+# =====================================================
+# FRAME EXTRACTION
+# =====================================================
+
+def extract_claim_frame(
+    claim,
+    decomposition
+):
+
+    frame = {
+
+        "entities": [],
+
+        "actions": [],
+
+        "numbers": [],
+
+        "event_terms": [],
+
+        "noun_chunks": []
+    }
+
+    # ==========================================
+    # ENTITIES
+    # ==========================================
+
+    for entity in decomposition["entities"]:
+
+        frame["entities"].append(
+
+            entity["text"].lower()
+        )
+
+    # ==========================================
+    # ACTIONS
+    # ==========================================
+
+    for action in decomposition["actions"]:
+
+        normalized = normalize_action(
+            action
+        )
+
+        frame["actions"].append(
+            normalized
+        )
+
+    # ==========================================
+    # NUMBERS
+    # ==========================================
+
+    frame["numbers"] = [
+
+        n.lower()
+
+        for n in decomposition["numbers"]
+    ]
+
+    # ==========================================
+    # NOUN CHUNKS
+    # ==========================================
+
+    frame["noun_chunks"] = [
+
+        chunk.lower()
+
+        for chunk in decomposition[
+            "noun_chunks"
+        ]
+    ]
+
+    # ==========================================
+    # EVENT TERMS
+    # ==========================================
+
+    important_terms = re.findall(
+
+        r"\b[a-zA-Z]{4,}\b",
+
+        claim.lower()
+    )
+
+    stopwords = {
+
+        "this",
+        "that",
+        "with",
+        "from",
+        "have",
+        "were",
+        "their",
+        "about",
+        "which",
+        "where",
+        "when",
+        "while",
+        "into",
+        "during",
+        "after",
+        "before",
+        "under",
+        "over",
+        "between",
+        "among",
+        "through",
+        "within",
+        "without",
+
+        "program",
+        "programme",
+        "event",
+        "social",
+        "parting"
+    }
+
+    frame["event_terms"] = [
+
+        t for t in important_terms
+
+        if t not in stopwords
+    ]
+
+    # ==========================================
+    # REMOVE DUPLICATES
+    # ==========================================
+
+    frame["entities"] = list(
+        set(frame["entities"])
+    )
+
+    frame["actions"] = list(
+        set(frame["actions"])
+    )
+
+    frame["numbers"] = list(
+        set(frame["numbers"])
+    )
+
+    frame["noun_chunks"] = list(
+        set(frame["noun_chunks"])
+    )
+
+    frame["event_terms"] = list(
+        set(frame["event_terms"])
+    )
+
+    return frame
+
+
+# =====================================================
+# EVENT MATCHING
+# =====================================================
+
+def overlap_score(a, b):
+
+    if not a or not b:
+
+        return 0
+
+    a = set(a)
+
+    b = set(b)
+
+    overlap = a.intersection(b)
+
+    return len(overlap) / max(
+
+        len(a),
+
+        1
+    )
+
+
+def compute_event_match(
+
+    claim_frame,
+
+    evidence_frame
+):
+
+    # ==========================================
+    # ENTITY MATCH
+    # ==========================================
+
+    entity_score = overlap_score(
+
+        claim_frame["entities"],
+
+        evidence_frame["entities"]
+    )
+
+    # ==========================================
+    # ACTION MATCH
+    # ==========================================
+
+    action_score = overlap_score(
+
+        claim_frame["actions"],
+
+        evidence_frame["actions"]
+    )
+
+    # ==========================================
+    # NUMBER MATCH
+    # ==========================================
+
+    number_score = overlap_score(
+
+        claim_frame["numbers"],
+
+        evidence_frame["numbers"]
+    )
+
+    # ==========================================
+    # EVENT TERM MATCH
+    # ==========================================
+
+    term_score = overlap_score(
+
+        claim_frame["event_terms"],
+
+        evidence_frame["event_terms"]
+    )
+
+    # ==========================================
+    # FINAL SCORE
+    # ==========================================
+
+    final_score = (
+
+        entity_score * 0.40
+
+        +
+
+        action_score * 0.25
+
+        +
+
+        number_score * 0.20
+
+        +
+
+        term_score * 0.15
+    )
+
+    return {
+
+        "entity_score": entity_score,
+
+        "action_score": action_score,
+
+        "number_score": number_score,
+
+        "term_score": term_score,
+
+        "final_score": final_score
+    }
+
+
+================================================================================
+FILE: .\analysis\consensus_engine.py
+================================================================================
+
+def compute_consensus(
+    evidence_list
+):
+
+    entailment = 0
+
+    contradiction = 0
+
+    neutral = 0
+
+    # ==========================================
+    # COUNT LABELS
+    # ==========================================
+
+    for evidence in evidence_list:
+
+        score = evidence.final_score
+
+        if evidence.nli_label == "ENTAILMENT":
+
+            entailment += score
+
+        elif evidence.nli_label == "CONTRADICTION":
+
+            contradiction += score
+
+        else:
+
+            neutral += score
+
+    # ==========================================
+    # TOTAL
+    # ==========================================
+
+    total = (
+
+        entailment
+
+        + contradiction
+
+        + neutral
+    )
+
+    if total == 0:
+
+        return {
+
+            "winner": "NEUTRAL",
+
+            "strength": 0
+        }
+
+    # ==========================================
+    # NORMALIZE
+    # ==========================================
+
+    entailment_ratio = (
+        entailment / total
+    )
+
+    contradiction_ratio = (
+        contradiction / total
+    )
+
+    neutral_ratio = (
+        neutral / total
+    )
+
+    # ==========================================
+    # DECISION
+    # ==========================================
+
+    ratios = {
+
+        "ENTAILMENT": entailment_ratio,
+
+        "CONTRADICTION": contradiction_ratio,
+
+        "NEUTRAL": neutral_ratio
+    }
+
+    winner = max(
+        ratios,
+        key=ratios.get
+    )
+
+    strength = ratios[winner]
+
+    return {
+
+        "winner": winner,
+
+        "strength": strength,
+
+        "ratios": ratios
+    }
+
+
+================================================================================
+FILE: .\analysis\evidence_scorer.py
+================================================================================
+
+from analysis.semantic_alignment import (
+    compute_alignment_score
+)
+
+from analysis.source_scorer import (
+    compute_source_score
+)
+
+from analysis.fact_matcher import (
+    compare_fact_structure
+)
+
+from analysis.temporal_scorer import (
+    compute_temporal_score
+)
+
+from urllib.parse import urlparse
+from collections import Counter
+
+
+# =====================================================
+# DOMAIN EXTRACTION
+# =====================================================
+
+def extract_domain(url):
+
+    try:
+
+        parsed = urlparse(url)
+
+        domain = parsed.netloc.lower()
+
+        domain = domain.replace(
+            "www.",
+            ""
+        )
+
+        return domain
+
+    except:
+
+        return "unknown"
+
+
+# =====================================================
+# PROVENANCE SCORE
+# =====================================================
+
+def compute_provenance_score(
+    evidence,
+    evidence_list=None
+):
+
+    if not evidence_list:
+
+        return 0
+
+    domains = []
+
+    for item in evidence_list:
+
+        domain = extract_domain(
+            item.source_url
+        )
+
+        domains.append(domain)
+
+    domain_counts = Counter(
+        domains
+    )
+
+    current_domain = extract_domain(
+        evidence.source_url
+    )
+
+    count = domain_counts.get(
+        current_domain,
+        1
+    )
+
+    # ==========================================
+    # INDEPENDENT SOURCE
+    # ==========================================
+
+    if count == 1:
+
+        return 2.5
+
+    # ==========================================
+    # LIGHT DUPLICATION
+    # ==========================================
+
+    elif count <= 3:
+
+        return 0.5
+
+    # ==========================================
+    # HEAVY SOURCE DOMINANCE
+    # ==========================================
+
+    return -3.0
+
+
+# =====================================================
+# MAIN SCORER
+# =====================================================
+
+def compute_evidence_score(
+    claim,
+    evidence,
+    evidence_list=None
+):
+
+    # ==========================================
+    # RERANK SCORE
+    # ==========================================
+
+    rerank_score = max(
+        evidence.reranker_score,
+        0
+    )
+
+    # ==========================================
+    # NLI CONFIDENCE
+    # ==========================================
+
+    nli_score = (
+        evidence.nli_confidence
+    )
+
+    # ==========================================
+    # SEMANTIC ALIGNMENT
+    # ==========================================
+
+    alignment = (
+        compute_alignment_score(
+            claim,
+            evidence.content
+        )
+    )
+
+    # ==========================================
+    # FACT STRUCTURE MATCHING
+    # ==========================================
+
+    fact_match = compare_fact_structure(
+
+        claim,
+
+        evidence.content
+    )
+
+    fact_score = fact_match["score"]
+
+    # ==========================================
+    # SOURCE TRUST SCORE
+    # ==========================================
+
+    source_score = compute_source_score(
+        evidence.source_url
+    )
+
+    # ==========================================
+    # TEMPORAL SCORE
+    # ==========================================
+
+    temporal_score = compute_temporal_score(
+        evidence.content
+    )
+
+    # ==========================================
+    # PROVENANCE SCORE
+    # ==========================================
+
+    provenance_score = (
+        compute_provenance_score(
+            evidence,
+            evidence_list
+        )
+    )
+
+    # ==========================================
+    # LABEL BONUS
+    # ==========================================
+
+    label_bonus = 0
+
+    if evidence.nli_label == "ENTAILMENT":
+
+        label_bonus = 2.0
+
+    elif evidence.nli_label == "CONTRADICTION":
+
+        label_bonus = -1.5
+
+    # ==========================================
+    # CONFLICT PENALTY
+    # ==========================================
+
+    conflict_penalty = (
+
+        fact_match["conflict_count"]
+        * 1.5
+    )
+
+    # ==========================================
+    # FINAL COMBINED SCORE
+    # ==========================================
+
+    combined = (
+
+        rerank_score * 0.30
+
+        +
+
+        nli_score * 0.20
+
+        +
+
+        alignment * 3.0
+
+        +
+
+        fact_score * 1.5
+
+        +
+
+        source_score
+
+        +
+
+        provenance_score
+
+        +
+
+        temporal_score
+
+        +
+
+        label_bonus
+
+        -
+
+        conflict_penalty
+    )
+
+    # ==========================================
+    # STORE SCORES
+    # ==========================================
+
+    evidence.final_score = combined
+
+    evidence.alignment_score = (
+        alignment
+    )
+
+    evidence.fact_score = (
+        fact_score
+    )
+
+    evidence.fact_match = (
+        fact_match
+    )
+
+    evidence.source_score = (
+        source_score
+    )
+
+    evidence.temporal_score = (
+        temporal_score
+    )
+
+    evidence.provenance_score = (
+        provenance_score
+    )
+
+    evidence.conflict_penalty = (
+        conflict_penalty
+    )
+
+    return evidence
+
+
+================================================================================
+FILE: .\analysis\fact_matcher.py
+================================================================================
+
+from rapidfuzz import fuzz
+import spacy
+import re
+from datetime import datetime
+
+from analysis.wikidata_utils import (
+    entities_match,
+    normalize_entity,
+    entity_similarity
+)
+
+nlp = spacy.load(
+    "en_core_web_sm"
+)
+
+CURRENT_YEAR = datetime.now().year
+
+# =====================================================
+# EVENT KEYWORDS
+# =====================================================
+
+EVENT_TERMS = {
+
+    "programme",
+    "program",
+    "event",
+    "seminar",
+    "conference",
+    "social",
+    "parting",
+    "farewell",
+    "meeting",
+    "summit",
+    "workshop",
+    "festival",
+    "ceremony",
+    "world cup",
+    "tournament",
+    "match",
+    "cup"
+}
+
+# =====================================================
+# ENTITY WEIGHTS
+# =====================================================
+
+ENTITY_WEIGHTS = {
+
+    "ORG": 3.0,
+
+    "PERSON": 3.0,
+
+    "GPE": 4.0,
+
+    "LOC": 2.5,
+
+    "DATE": 3.5,
+
+    "TIME": 2.0,
+
+    "CARDINAL": 2.5,
+
+    "ORDINAL": 3.0,
+
+    "EVENT": 3.5,
+
+    "PRODUCT": 2.0
+}
+
+# =====================================================
+# NEGATION TERMS
+# =====================================================
+
+NEGATION_TERMS = {
+
+    "not",
+    "no",
+    "never",
+    "none",
+    "neither",
+    "cancelled",
+    "canceled",
+    "fake",
+    "false",
+    "deny",
+    "denied",
+    "reject",
+    "rejected",
+    "withdrawn",
+    "didn't",
+    "did not",
+    "wasn't",
+    "was not"
+}
+
+# =====================================================
+# RECENCY TERMS
+# =====================================================
+
+RECENT_TERMS = {
+
+    "today",
+    "yesterday",
+    "recently",
+    "currently",
+    "now",
+    "breaking",
+    "latest",
+    "this year",
+    "this week",
+    "this month"
+}
+
+# =====================================================
+# OLD / HISTORICAL TERMS
+# =====================================================
+
+OLD_TERMS = {
+
+    "previously",
+    "formerly",
+    "historical",
+    "earlier",
+    "past",
+    "old",
+    "archived",
+    "years ago"
+}
+
+# =====================================================
+# ACTION NORMALIZATION
+# =====================================================
+
+ACTION_NORMALIZATION = {
+
+    "hosted": "conduct",
+    "hosting": "conduct",
+
+    "organized": "conduct",
+    "organised": "conduct",
+
+    "held": "conduct",
+
+    "cancelled": "cancel",
+    "canceled": "cancel",
+
+    "postponed": "postpone",
+
+    "won": "win",
+    "wins": "win",
+    "winning": "win",
+
+    "lost": "lose",
+    "loses": "lose",
+
+    "completed": "complete",
+    "completes": "complete",
+
+    "finished": "complete",
+
+    "conducted": "conduct",
+
+    "launched": "launch",
+
+    "announced": "announce"
+}
+
+# =====================================================
+# ACTION CONTRADICTIONS
+# =====================================================
+
+CONTRADICTION_ACTIONS = {
+
+    "launch": [
+        "cancel",
+        "withdraw"
+    ],
+
+    "conduct": [
+        "cancel",
+        "postpone"
+    ],
+
+    "announce": [
+        "deny",
+        "reject"
+    ],
+
+    "win": [
+        "lose"
+    ],
+
+    "lose": [
+        "win"
+    ],
+
+    "approve": [
+        "reject",
+        "deny"
+    ],
+
+    "complete": [
+        "cancel",
+        "postpone"
+    ]
+}
+
+
+# =====================================================
+# HELPERS
+# =====================================================
+
+def entity_overlap_score(
+    ids_a,
+    ids_b
+):
+
+    if not ids_a or not ids_b:
+
+        return 0
+
+    overlap = set(ids_a) & set(ids_b)
+
+    return len(overlap)
+
+
+def normalize_action(action):
+
+    action = action.lower()
+
+    return ACTION_NORMALIZATION.get(
+        action,
+        action
+    )
+
+
+def extract_negations(doc):
+
+    negations = []
+
+    for token in doc:
+
+        if token.dep_ == "neg":
+
+            negations.append(
+                token.text.lower()
+            )
+
+        elif token.text.lower() in NEGATION_TERMS:
+
+            negations.append(
+                token.text.lower()
+            )
+
+    return list(set(negations))
+
+
+# =====================================================
+# RECENCY DETECTION
+# =====================================================
+
+def extract_recency_terms(text):
+
+    text = text.lower()
+
+    found = []
+
+    for term in RECENT_TERMS:
+
+        if term in text:
+
+            found.append(term)
+
+    return found
+
+
+# =====================================================
+# OLD CONTEXT DETECTION
+# =====================================================
+
+def extract_old_terms(text):
+
+    text = text.lower()
+
+    found = []
+
+    for term in OLD_TERMS:
+
+        if term in text:
+
+            found.append(term)
+
+    return found
+
+
+# =====================================================
+# YEAR EXTRACTION
+# =====================================================
+
+def extract_years(text):
+
+    return re.findall(
+        r"\b(?:19|20)\d{2}\b",
+        text
+    )
+
+
+# =====================================================
+# ENTITY RESOLUTION PLACEHOLDER
+# =====================================================
+
+def enrich_entities_with_wikidata(
+    entities
+):
+
+    enriched = []
+
+    for ent in entities:
+
+        enriched.append({
+
+            "text": ent["text"],
+
+            "label": ent["label"],
+
+            "wikidata_ids": []
+        })
+
+    return enriched
+
+
+# =====================================================
+# FACT STRUCTURE EXTRACTION
+# =====================================================
+
+def extract_fact_structure(text):
+
+    doc = nlp(text)
+
+    structure = {
+
+        "entities": [],
+
+        "numbers": [],
+
+        "actions": [],
+
+        "event_terms": [],
+
+        "noun_chunks": [],
+
+        "years": [],
+
+        "negations": [],
+
+        "recency_terms": [],
+
+        "old_terms": []
+    }
+
+    # ==========================================
+    # ENTITIES
+    # ==========================================
+
+    raw_entities = []
+
+    for ent in doc.ents:
+
+        cleaned_text = (
+            ent.text
+            .strip()
+            .lower()
+        )
+
+        if len(cleaned_text) > 1:
+
+            raw_entities.append({
+
+                "text": cleaned_text,
+
+                "label": ent.label_
+            })
+
+    structure["entities"] = (
+        enrich_entities_with_wikidata(
+            raw_entities
+        )
+    )
+
+    # ==========================================
+    # NUMBERS
+    # ==========================================
+
+    numbers = re.findall(
+        r"\b\d+(?:st|nd|rd|th)?\b",
+        text.lower()
+    )
+
+    structure["numbers"] = list(set(numbers))
+
+    # ==========================================
+    # YEARS
+    # ==========================================
+
+    structure["years"] = list(set(
+        extract_years(text)
+    ))
+
+    # ==========================================
+    # NEGATIONS
+    # ==========================================
+
+    structure["negations"] = extract_negations(
+        doc
+    )
+
+    # ==========================================
+    # RECENCY TERMS
+    # ==========================================
+
+    structure["recency_terms"] = (
+        extract_recency_terms(text)
+    )
+
+    # ==========================================
+    # OLD TERMS
+    # ==========================================
+
+    structure["old_terms"] = (
+        extract_old_terms(text)
+    )
+
+    # ==========================================
+    # ACTIONS
+    # ==========================================
+
+    actions = []
+
+    for token in doc:
+
+        if token.pos_ in ["VERB", "AUX"]:
+
+            normalized = normalize_action(
+                token.lemma_.lower()
+            )
+
+            if len(normalized) > 2:
+
+                actions.append(
+                    normalized
+                )
+
+    structure["actions"] = list(set(actions))
+
+    # ==========================================
+    # EVENT TERMS
+    # ==========================================
+
+    event_terms = []
+
+    text_lower = text.lower()
+
+    for event in EVENT_TERMS:
+
+        if event in text_lower:
+
+            event_terms.append(event)
+
+    structure["event_terms"] = list(set(
+        event_terms
+    ))
+
+    # ==========================================
+    # NOUN CHUNKS
+    # ==========================================
+
+    noun_chunks = []
+
+    for chunk in doc.noun_chunks:
+
+        cleaned = (
+            chunk.text
+            .strip()
+            .lower()
+        )
+
+        if len(cleaned) > 2:
+
+            noun_chunks.append(
+                cleaned
+            )
+
+    structure["noun_chunks"] = list(set(
+        noun_chunks
+    ))
+
+    return structure
+
+
+# =====================================================
+# ENTITY OVERLAP
+# =====================================================
+
+def has_entity_overlap(
+    claim_entities,
+    evidence_entities
+):
+
+    for claim_ent in claim_entities:
+
+        for evidence_ent in evidence_entities:
+
+            # ----------------------------------
+            # WIKIDATA MATCH
+            # ----------------------------------
+
+            wikidata_score = entity_overlap_score(
+
+                claim_ent.get(
+                    "wikidata_ids",
+                    []
+                ),
+
+                evidence_ent.get(
+                    "wikidata_ids",
+                    []
+                )
+            )
+
+            if wikidata_score > 0:
+
+                return True
+
+            # ----------------------------------
+            # FUZZY MATCH
+            # ----------------------------------
+
+            similarity = fuzz.token_sort_ratio(
+
+                claim_ent["text"],
+
+                evidence_ent["text"]
+            )
+
+            if similarity >= 80:
+
+                return True
+
+    return False
+
+
+# =====================================================
+# CONTEXTUAL RECENCY CHECK
+# =====================================================
+
+def detect_contextual_conflicts(
+    claim_struct,
+    evidence_struct
+):
+
+    conflicts = []
+
+    claim_recent = bool(
+        claim_struct["recency_terms"]
+    )
+
+    evidence_old = bool(
+        evidence_struct["old_terms"]
+    )
+
+    evidence_years = evidence_struct[
+        "years"
+    ]
+
+    # ==========================================
+    # OLD CONTENT FRAMED AS CURRENT
+    # ==========================================
+
+    if claim_recent and evidence_old:
+
+        conflicts.append(
+            "stale_context_conflict"
+        )
+
+    # ==========================================
+    # RECYCLED NEWS CHECK
+    # ==========================================
+
+    if claim_recent and evidence_years:
+
+        for year in evidence_years:
+
+            try:
+
+                age = CURRENT_YEAR - int(year)
+
+                if age >= 2:
+
+                    conflicts.append(
+                        "recycled_news_conflict"
+                    )
+
+            except:
+                pass
+
+    return list(set(conflicts))
+
+
+# =====================================================
+# CONFLICT DETECTION
+# =====================================================
+
+def detect_conflicts(
+    claim_struct,
+    evidence_struct
+):
+
+    conflicts = []
+
+    entity_related = has_entity_overlap(
+
+        claim_struct["entities"],
+
+        evidence_struct["entities"]
+    )
+
+    # ==========================================
+    # NUMBER CONFLICTS
+    # ==========================================
+
+    claim_numbers = set(
+        claim_struct["numbers"]
+    )
+
+    evidence_numbers = set(
+        evidence_struct["numbers"]
+    )
+
+    shared_numbers = (
+        claim_numbers
+        &
+        evidence_numbers
+    )
+
+    if (
+
+        claim_numbers
+
+        and
+
+        evidence_numbers
+
+        and
+
+        not shared_numbers
+
+    ):
+
+        if (
+
+            len(claim_numbers) <= 2
+
+            and
+
+            len(evidence_numbers) <= 2
+        ):
+
+            conflicts.append(
+                "number_conflict"
+            )
+
+    # ==========================================
+    # YEAR CONFLICTS
+    # ==========================================
+
+    claim_years = set(
+        claim_struct["years"]
+    )
+
+    evidence_years = set(
+        evidence_struct["years"]
+    )
+
+    shared_years = (
+        claim_years
+        &
+        evidence_years
+    )
+
+    if (
+
+        claim_years
+
+        and
+
+        evidence_years
+
+        and
+
+        not shared_years
+
+    ):
+
+        try:
+
+            claim_year = max(
+                int(y)
+                for y in claim_years
+            )
+
+            evidence_year = max(
+                int(y)
+                for y in evidence_years
+            )
+
+            if abs(
+                claim_year
+                -
+                evidence_year
+            ) >= 2:
+
+                conflicts.append(
+                    "year_conflict"
+                )
+
+        except:
+            pass
+
+    # ==========================================
+    # ACTION CONFLICTS
+    # ==========================================
+
+    if entity_related:
+
+        for claim_action in claim_struct[
+            "actions"
+        ]:
+
+            opposite_actions = (
+                CONTRADICTION_ACTIONS.get(
+                    claim_action,
+                    []
+                )
+            )
+
+            for evidence_action in evidence_struct[
+                "actions"
+            ]:
+
+                if evidence_action in opposite_actions:
+
+                    conflicts.append(
+                        "action_conflict"
+                    )
+
+    # ==========================================
+    # NEGATION CONFLICTS
+    # ==========================================
+
+    claim_has_negation = bool(
+        claim_struct["negations"]
+    )
+
+    evidence_has_negation = bool(
+        evidence_struct["negations"]
+    )
+
+    if claim_has_negation != evidence_has_negation:
+
+        if entity_related:
+
+            conflicts.append(
+                "negation_conflict"
+            )
+
+    # ==========================================
+    # CONTEXTUAL CONFLICTS
+    # ==========================================
+
+    contextual_conflicts = (
+        detect_contextual_conflicts(
+            claim_struct,
+            evidence_struct
+        )
+    )
+
+    conflicts.extend(
+        contextual_conflicts
+    )
+
+    return list(set(conflicts))
+
+
+# =====================================================
+# FACT STRUCTURE COMPARISON
+# =====================================================
+
+def compare_fact_structure(
+    claim,
+    evidence
+):
+
+    claim_struct = (
+        extract_fact_structure(claim)
+    )
+
+    evidence_struct = (
+        extract_fact_structure(evidence)
+    )
+
+    score = 0
+
+    # =================================================
+    # ENTITY MATCHING
+    # =================================================
+
+    entity_score = 0
+
+    matched_pairs = set()
+
+    for claim_ent in claim_struct["entities"]:
+
+        for evidence_ent in evidence_struct["entities"]:
+
+            pair_key = (
+
+                claim_ent["text"],
+                evidence_ent["text"]
+            )
+
+            if pair_key in matched_pairs:
+
+                continue
+
+            matched_pairs.add(
+                pair_key
+            )
+
+            # -----------------------------------------
+            # WIKIDATA ENTITY BOOST
+            # -----------------------------------------
+
+            wikidata_score = entity_overlap_score(
+
+                claim_ent.get(
+                    "wikidata_ids",
+                    []
+                ),
+
+                evidence_ent.get(
+                    "wikidata_ids",
+                    []
+                )
+            )
+
+            if wikidata_score > 0:
+
+                entity_score += 5
+
+                continue
+
+            # -----------------------------------------
+            # FUZZY ENTITY MATCH
+            # -----------------------------------------
+
+            similarity = fuzz.token_sort_ratio(
+
+                claim_ent["text"],
+
+                evidence_ent["text"]
+            )
+
+            if similarity >= 80:
+
+                weight = ENTITY_WEIGHTS.get(
+
+                    claim_ent["label"],
+
+                    1.5
+                )
+
+                if (
+                    claim_ent["label"]
+                    ==
+                    evidence_ent["label"]
+                ):
+
+                    entity_score += weight
+
+                else:
+
+                    entity_score += (
+                        weight * 0.5
+                    )
+
+    score += entity_score
+
+    # =================================================
+    # ACTION MATCHING
+    # =================================================
+
+    action_overlap = 0
+
+    for claim_action in claim_struct["actions"]:
+
+        for evidence_action in evidence_struct["actions"]:
+
+            similarity = fuzz.ratio(
+
+                claim_action,
+                evidence_action
+            )
+
+            if similarity >= 85:
+
+                action_overlap += 1
+
+    score += action_overlap * 3
+
+    # =================================================
+    # EVENT TERM MATCHING
+    # =================================================
+
+    event_overlap = len(
+
+        set(claim_struct["event_terms"])
+        &
+        set(evidence_struct["event_terms"])
+
+    )
+
+    score += event_overlap * 4
+
+    # =================================================
+    # NUMBER MATCHING
+    # =================================================
+
+    claim_numbers = set(
+        claim_struct["numbers"]
+    )
+
+    evidence_numbers = set(
+        evidence_struct["numbers"]
+    )
+
+    if claim_numbers:
+
+        if claim_numbers & evidence_numbers:
+
+            score += 3
+
+        else:
+
+            if len(claim_numbers) <= 2:
+
+                score -= 1
+
+    # =================================================
+    # YEAR MATCHING
+    # =================================================
+
+    claim_years = set(
+        claim_struct["years"]
+    )
+
+    evidence_years = set(
+        evidence_struct["years"]
+    )
+
+    if claim_years:
+
+        if claim_years & evidence_years:
+
+            score += 5
+
+        else:
+
+            try:
+
+                claim_year = max(
+                    int(y)
+                    for y in claim_years
+                )
+
+                evidence_year = max(
+                    int(y)
+                    for y in evidence_years
+                )
+
+                if abs(
+                    claim_year
+                    -
+                    evidence_year
+                ) >= 2:
+
+                    score -= 5
+
+            except:
+                pass
+
+    # =================================================
+    # NOUN CHUNK MATCH
+    # =================================================
+
+    best_chunk_score = 0
+
+    for claim_chunk in claim_struct[
+        "noun_chunks"
+    ]:
+
+        for evidence_chunk in evidence_struct[
+            "noun_chunks"
+        ]:
+
+            similarity = fuzz.token_sort_ratio(
+
+                claim_chunk,
+
+                evidence_chunk
+
+            ) / 100.0
+
+            if similarity > best_chunk_score:
+
+                best_chunk_score = similarity
+
+    if (
+        action_overlap > 0
+        or
+        event_overlap > 0
+        or
+        entity_score > 3
+    ):
+
+        score += best_chunk_score * 4
+
+    # =================================================
+    # SPECIAL SPORTS / EVENT BOOST
+    # =================================================
+
+    if (
+
+        claim_struct["years"]
+
+        and
+
+        evidence_struct["years"]
+
+        and
+
+        claim_struct["actions"]
+
+        and
+
+        evidence_struct["actions"]
+
+    ):
+
+        shared_actions = (
+
+            set(claim_struct["actions"])
+            &
+            set(evidence_struct["actions"])
+
+        )
+
+        if shared_actions:
+
+            score += 4
+
+    # =================================================
+    # CONFLICT DETECTION
+    # =================================================
+
+    conflicts = detect_conflicts(
+
+        claim_struct,
+
+        evidence_struct
+    )
+
+    for conflict in conflicts:
+
+        if conflict == "action_conflict":
+
+            score -= 6
+
+        elif conflict == "year_conflict":
+
+            score -= 5
+
+        elif conflict == "number_conflict":
+
+            score -= 3
+
+        elif conflict == "negation_conflict":
+
+            score -= 8
+
+        elif conflict == "recycled_news_conflict":
+
+            score -= 5
+
+        elif conflict == "stale_context_conflict":
+
+            score -= 6
+
+    # =================================================
+    # RECENCY BONUS
+    # =================================================
+
+    if (
+
+        claim_struct["recency_terms"]
+
+        and
+
+        evidence_struct["years"]
+    ):
+
+        try:
+
+            latest_year = max(
+
+                int(y)
+                for y in evidence_struct["years"]
+            )
+
+            if latest_year >= CURRENT_YEAR - 1:
+
+                score += 2
+
+        except:
+            pass
+
+    # =================================================
+    # RETURN
+    # =================================================
+
+    return {
+
+        "score": round(score, 3),
+
+        "claim": claim_struct,
+
+        "evidence": evidence_struct,
+
+        "conflicts": conflicts,
+
+        "conflict_count": len(
+            conflicts
+        )
+    }
+
+
+================================================================================
+FILE: .\analysis\nli_analyzer.py
+================================================================================
+
+import traceback
+from transformers import pipeline
+
+from understanding.claim_normalizer import (
+    normalize_claim
+)
+
+# =====================================================
+# LOAD NLI MODEL
+# =====================================================
+
+print("\nLOADING NLI MODEL...\n")
+
+nli_pipeline = pipeline(
+
+    "text-classification",
+
+    model="roberta-large-mnli",
+
+    device=-1,
+
+    truncation=True,
+
+    max_length=512
+)
+
+print("\nNLI MODEL LOADED\n")
+
+
+# =====================================================
+# LABEL NORMALIZATION
+# =====================================================
+
+LABEL_MAP = {
+
+    "LABEL_0": "CONTRADICTION",
+    "LABEL_1": "NEUTRAL",
+    "LABEL_2": "ENTAILMENT",
+
+    "contradiction": "CONTRADICTION",
+    "neutral": "NEUTRAL",
+    "entailment": "ENTAILMENT",
+
+    "CONTRADICTION": "CONTRADICTION",
+    "NEUTRAL": "NEUTRAL",
+    "ENTAILMENT": "ENTAILMENT"
+}
+
+
+# =====================================================
+# EVIDENCE CLEANING
+# =====================================================
+
+def clean_evidence_text(text):
+
+    if not text:
+
+        return ""
+
+    # ==========================================
+    # REMOVE EXCESS WHITESPACE
+    # ==========================================
+
+    text = " ".join(
+        text.split()
+    )
+
+    # ==========================================
+    # REMOVE URL-LIKE GARBAGE
+    # ==========================================
+
+    text = text.replace(
+        "\n",
+        " "
+    )
+
+    # ==========================================
+    # HARD TRUNCATION
+    # ==========================================
+
+    if len(text) > 1200:
+
+        text = text[:1200]
+
+    return text
+
+
+# =====================================================
+# SENTENCE FOCUS EXTRACTION
+# =====================================================
+
+def extract_focus_sentence(
+    claim,
+    evidence_text
+):
+
+    claim_words = set(
+
+        normalize_claim(claim)
+        .lower()
+        .split()
+    )
+
+    sentences = evidence_text.split(".")
+
+    best_sentence = evidence_text
+
+    best_overlap = 0
+
+    for sentence in sentences:
+
+        sentence_words = set(
+            sentence.lower().split()
+        )
+
+        overlap = len(
+            claim_words
+            &
+            sentence_words
+        )
+
+        if overlap > best_overlap:
+
+            best_overlap = overlap
+
+            best_sentence = sentence
+
+    return best_sentence.strip()
+
+
+# =====================================================
+# LABEL CALIBRATION
+# =====================================================
+
+def calibrate_nli_label(
+    raw_label,
+    confidence,
+    alignment_score,
+    fact_score
+):
+
+    label = LABEL_MAP.get(
+        raw_label,
+        "NEUTRAL"
+    )
+
+    # ==========================================
+    # STRONG ENTAILMENT BOOST
+    # ==========================================
+
+    if (
+
+        label == "NEUTRAL"
+
+        and
+
+        confidence >= 0.45
+
+        and
+
+        alignment_score >= 0.60
+
+        and
+
+        fact_score >= 10
+
+    ):
+
+        label = "ENTAILMENT"
+
+    # ==========================================
+    # VERY STRONG MATCH OVERRIDE
+    # ==========================================
+
+    if (
+
+        alignment_score >= 0.75
+
+        and
+
+        fact_score >= 15
+    ):
+
+        label = "ENTAILMENT"
+
+    # ==========================================
+    # WEAK CONTRADICTION FILTER
+    # ==========================================
+
+    if (
+
+        label == "CONTRADICTION"
+
+        and
+
+        alignment_score < 0.50
+
+    ):
+
+        label = "NEUTRAL"
+
+    return label
+
+
+# =====================================================
+# MAIN NLI ANALYSIS
+# =====================================================
+
+def analyze_claim_evidence(
+    claim,
+    evidence_list
+):
+
+    analyzed = []
+
+    normalized_claim = normalize_claim(
+        claim
+    )
+
+    print("\n[NORMALIZED CLAIM]")
+    print(normalized_claim)
+
+    # =================================================
+    # CLAIM TRUNCATION
+    # =================================================
+
+    normalized_claim = normalized_claim[
+        :300
+    ]
+
+    for evidence in evidence_list:
+
+        try:
+
+            # ==========================================
+            # SAFETY DEFAULTS
+            # ==========================================
+
+            evidence.nli_label = "NEUTRAL"
+
+            evidence.nli_confidence = 0.0
+
+            raw_content = getattr(
+                evidence,
+                "content",
+                ""
+            )
+
+            normalized_evidence = normalize_claim(
+                raw_content
+            )
+
+            cleaned_evidence = clean_evidence_text(
+                normalized_evidence
+            )
+
+            focused_evidence = (
+                extract_focus_sentence(
+                    normalized_claim,
+                    cleaned_evidence
+                )
+            )
+
+            # ==========================================
+            # FINAL NLI INPUT
+            # ==========================================
+
+            premise = focused_evidence
+
+            hypothesis = normalized_claim
+
+            print("\n[NLI INPUT]")
+            print("HYPOTHESIS:", hypothesis)
+            print("PREMISE:", premise)
+
+            # ==========================================
+            # RUN NLI
+            # ==========================================
+
+            pair_input = (
+                premise
+                +
+                " </s></s> "
+                +
+                hypothesis
+            )
+            result = nli_pipeline(
+                pair_input
+            )
+
+            if isinstance(result, list):
+
+                result = result[0]
+
+            print("\n[NLI RAW RESULT]")
+            print(result)
+
+            raw_label = result.get(
+                "label",
+                "NEUTRAL"
+            )
+
+            confidence = float(
+                result.get(
+                    "score",
+                    0.0
+                )
+            )
+
+            alignment_score = getattr(
+                evidence,
+                "alignment_score",
+                0.0
+            )
+
+            fact_score = getattr(
+                evidence,
+                "fact_score",
+                0.0
+            )
+
+            print("\n[NLI DEBUG]")
+            print("RAW LABEL:", raw_label)
+            print("CONFIDENCE:", confidence)
+            print("ALIGNMENT:", alignment_score)
+            print("FACT SCORE:", fact_score)
+
+            calibrated_label = calibrate_nli_label(
+
+                raw_label=raw_label,
+
+                confidence=confidence,
+
+                alignment_score=alignment_score,
+
+                fact_score=fact_score
+            )
+
+            print(
+                "CALIBRATED LABEL:",
+                calibrated_label
+            )
+
+            evidence.nli_label = calibrated_label
+
+            evidence.nli_confidence = confidence
+
+        except Exception as e:
+
+            print("\nNLI ERROR:")
+            print(e)
+
+            traceback.print_exc()
+
+            evidence.nli_label = "NEUTRAL"
+
+            evidence.nli_confidence = 0.0
+
+        analyzed.append(
+            evidence
+        )
+
+    return analyzed
+
+================================================================================
+FILE: .\analysis\report_generator.py
+================================================================================
+
+
+# =====================================================
+# REPORT GENERATOR
+# =====================================================
+
+
+def build_report(state):
+
+    lines = []
+
+    # =================================================
+    # HEADER
+    # =================================================
+
+    lines.append(
+        f"Verdict: {state.final_verdict}"
+    )
+
+    lines.append(
+        f"Confidence: "
+        f"{round(state.confidence_score, 3)}"
+    )
+
+    lines.append("\nTop Evidence:\n")
+
+    # =================================================
+    # EVIDENCE
+    # =================================================
+
+    for evidence in state.nli_results[:3]:
+
+        title = getattr(
+            evidence,
+            "title",
+            "Unknown Title"
+        )
+
+        label = getattr(
+            evidence,
+            "nli_label",
+            "NEUTRAL"
+        )
+
+        final_score = getattr(
+            evidence,
+            "final_score",
+            0
+        )
+
+        source_url = getattr(
+            evidence,
+            "source_url",
+            "Unknown Source"
+        )
+
+        lines.append(
+            f"- {title}"
+        )
+
+        lines.append(
+            f"  Label: {label}"
+        )
+
+        lines.append(
+            f"  Final Score: "
+            f"{round(final_score, 3)}"
+        )
+
+        lines.append(
+            f"  Source: "
+            f"{source_url}"
+        )
+
+        lines.append("")
+
+    # =================================================
+    # RETURN
+    # =================================================
+
+    return "\n".join(lines)
+
+
+================================================================================
+FILE: .\analysis\semantic_alignment.py
+================================================================================
+
+from rapidfuzz import fuzz
+
+import spacy
+
+
+nlp = spacy.load(
+    "en_core_web_sm"
+)
+
+
+def extract_core_terms(text):
+
+    doc = nlp(text)
+
+    terms = []
+
+    for token in doc:
+
+        if token.pos_ in [
+
+            "NOUN",
+            "PROPN",
+            "VERB"
+
+        ]:
+
+            terms.append(
+                token.lemma_.lower()
+            )
+
+    return set(terms)
+
+
+def compute_alignment_score(
+    claim,
+    evidence
+):
+
+    # ==========================================
+    # FUZZY TEXT MATCH
+    # ==========================================
+
+    fuzzy = fuzz.token_sort_ratio(
+
+        claim.lower(),
+
+        evidence.lower()
+    ) / 100.0
+
+    # ==========================================
+    # CORE TERM OVERLAP
+    # ==========================================
+
+    claim_terms = extract_core_terms(
+        claim
+    )
+
+    evidence_terms = extract_core_terms(
+        evidence
+    )
+
+    overlap = (
+        len(
+            claim_terms.intersection(
+                evidence_terms
+            )
+        )
+        /
+        max(len(claim_terms), 1)
+    )
+
+    # ==========================================
+    # FINAL SCORE
+    # ==========================================
+
+    final_score = (
+        fuzzy * 0.5
+        +
+        overlap * 0.5
+    )
+
+    return final_score
+
+
+================================================================================
+FILE: .\analysis\source_scorer.py
+================================================================================
+
+from urllib.parse import urlparse
+
+
+SOURCE_WEIGHTS = {
+
+    # ==========================================
+    # HIGH TRUST
+    # ==========================================
+
+    "gov": 10,
+
+    "edu": 9,
+
+    "reuters.com": 9,
+
+    "apnews.com": 9,
+
+    "bbc.com": 8,
+
+    "nytimes.com": 8,
+
+    # ==========================================
+    # MEDIUM TRUST
+    # ==========================================
+
+    "wikipedia.org": 5,
+
+    "medium.com": 4,
+
+    # ==========================================
+    # LOW TRUST
+    # ==========================================
+
+    "facebook.com": 2,
+
+    "instagram.com": 2,
+
+    "twitter.com": 2,
+
+    "x.com": 2
+}
+
+
+def get_domain(url):
+
+    try:
+
+        domain = urlparse(
+            url
+        ).netloc.lower()
+
+        domain = domain.replace(
+            "www.",
+            ""
+        )
+
+        return domain
+
+    except:
+
+        return ""
+
+
+def compute_source_score(url):
+
+    domain = get_domain(url)
+
+    # ==========================================
+    # EXACT MATCH
+    # ==========================================
+
+    if domain in SOURCE_WEIGHTS:
+
+        return SOURCE_WEIGHTS[domain]
+
+    # ==========================================
+    # DOMAIN SUFFIX MATCH
+    # ==========================================
+
+    for key in SOURCE_WEIGHTS:
+
+        if domain.endswith(key):
+
+            return SOURCE_WEIGHTS[key]
+
+    # ==========================================
+    # DEFAULT
+    # ==========================================
+
+    return 5
+
+
+================================================================================
+FILE: .\analysis\temporal_scorer.py
+================================================================================
+
+import re
+
+from datetime import datetime
+
+
+CURRENT_YEAR = datetime.now().year
+
+
+# ==========================================
+# YEAR EXTRACTION
+# ==========================================
+
+def extract_year(text):
+
+    years = re.findall(
+
+        r"\b(?:19|20)\d{2}\b",
+
+        text
+    )
+
+    if not years:
+
+        return None
+
+    try:
+
+        return int(years[0])
+
+    except:
+
+        return None
+
+
+# ==========================================
+# TEMPORAL FRESHNESS SCORE
+# ==========================================
+
+def compute_temporal_score(content):
+
+    year = extract_year(
+        content
+    )
+
+    # ==========================================
+    # NO YEAR FOUND
+    # ==========================================
+
+    if not year:
+
+        return 5
+
+    age = CURRENT_YEAR - year
+
+    # ==========================================
+    # VERY RECENT
+    # ==========================================
+
+    if age <= 1:
+
+        return 10
+
+    # ==========================================
+    # RECENT
+    # ==========================================
+
+    if age <= 3:
+
+        return 8
+
+    # ==========================================
+    # MODERATE
+    # ==========================================
+
+    if age <= 5:
+
+        return 6
+
+    # ==========================================
+    # OLD
+    # ==========================================
+
+    if age <= 10:
+
+        return 4
+
+    # ==========================================
+    # VERY OLD
+    # ==========================================
+
+    return 2
+
+
+# ==========================================
+# NUMBER EXTRACTION
+# ==========================================
+
+def extract_numbers(text):
+
+    return re.findall(
+
+        r"\b\d+(?:st|nd|rd|th)?\b",
+
+        text.lower()
+    )
+
+
+# ==========================================
+# TEMPORAL CONSISTENCY
+# ==========================================
+
+def compute_temporal_consistency(
+    claim,
+    evidence
+):
+
+    score = 0
+
+    # ==========================================
+    # EXTRACT NUMBERS
+    # ==========================================
+
+    claim_numbers = extract_numbers(
+        claim
+    )
+
+    evidence_numbers = extract_numbers(
+        evidence
+    )
+
+    # ==========================================
+    # NUMBER MATCHING
+    # ==========================================
+
+    if claim_numbers:
+
+        matches = 0
+
+        for number in claim_numbers:
+
+            if number in evidence_numbers:
+
+                matches += 1
+
+        ratio = (
+
+            matches
+            /
+            len(claim_numbers)
+
+        )
+
+        score += ratio * 10
+
+    # ==========================================
+    # EXTRACT YEARS
+    # ==========================================
+
+    claim_year = extract_year(
+        claim
+    )
+
+    evidence_year = extract_year(
+        evidence
+    )
+
+    # ==========================================
+    # YEAR MATCHING
+    # ==========================================
+
+    if claim_year and evidence_year:
+
+        if claim_year == evidence_year:
+
+            score += 10
+
+        else:
+
+            difference = abs(
+
+                claim_year
+                -
+                evidence_year
+            )
+
+            if difference <= 1:
+
+                score += 5
+
+    return score
+
+
+================================================================================
+FILE: .\analysis\verdict_aggregator.py
+================================================================================
+
+from collections import defaultdict
+
+from analysis.evidence_scorer import (
+    compute_evidence_score
+)
+
+from analysis.consensus_engine import (
+    compute_consensus
+)
+
+from analysis.semantic_alignment import (
+    compute_alignment_score
+)
+
+
+# =====================================================
+# EVIDENCE CLUSTERING
+# =====================================================
+
+def cluster_evidence(
+    evidence_list,
+    threshold=0.72
+):
+
+    clusters = []
+
+    used = set()
+
+    for i, evidence_a in enumerate(
+        evidence_list
+    ):
+
+        if i in used:
+
+            continue
+
+        cluster = [evidence_a]
+
+        used.add(i)
+
+        for j, evidence_b in enumerate(
+            evidence_list
+        ):
+
+            if j in used:
+
+                continue
+
+            similarity = (
+                compute_alignment_score(
+                    evidence_a.content,
+                    evidence_b.content
+                )
+            )
+
+            if similarity >= threshold:
+
+                cluster.append(
+                    evidence_b
+                )
+
+                used.add(j)
+
+        clusters.append(cluster)
+
+    return clusters
+
+
+# =====================================================
+# CLUSTER ANALYSIS
+# =====================================================
+
+def analyze_clusters(clusters):
+
+    cluster_data = []
+
+    for cluster in clusters:
+
+        labels = defaultdict(int)
+
+        total_score = 0
+
+        domains = set()
+
+        for evidence in cluster:
+
+            # ==========================================
+            # SAFETY DEFAULTS
+            # ==========================================
+
+            if not hasattr(
+                evidence,
+                "nli_label"
+            ):
+
+                evidence.nli_label = "NEUTRAL"
+
+            if not hasattr(
+                evidence,
+                "final_score"
+            ):
+
+                evidence.final_score = 0.0
+
+            labels[
+                evidence.nli_label
+            ] += 1
+
+            total_score += (
+                evidence.final_score
+            )
+
+            domains.add(
+                getattr(
+                    evidence,
+                    "source_url",
+                    "unknown"
+                )
+            )
+
+        dominant_label = max(
+            labels,
+            key=labels.get
+        )
+
+        cluster_data.append({
+
+            "size":
+            len(cluster),
+
+            "label":
+            dominant_label,
+
+            "avg_score":
+            total_score
+            /
+            max(len(cluster), 1),
+
+            "unique_sources":
+            len(domains),
+
+            "evidence":
+            cluster
+        })
+
+    return cluster_data
+
+
+# =====================================================
+# MAIN VERDICT AGGREGATION
+# =====================================================
+
+def aggregate_verdicts(
+    claim,
+    evidence_list
+):
+
+    scored_evidence = []
+
+    # ==========================================
+    # SCORE ALL EVIDENCE
+    # ==========================================
+
+    for evidence in evidence_list:
+
+        # ==========================================
+        # SAFETY DEFAULTS
+        # ==========================================
+
+        if not hasattr(
+            evidence,
+            "nli_label"
+        ):
+
+            evidence.nli_label = "NEUTRAL"
+
+        if not hasattr(
+            evidence,
+            "nli_confidence"
+        ):
+
+            evidence.nli_confidence = 0.0
+
+        if not hasattr(
+            evidence,
+            "fact_match"
+        ):
+
+            evidence.fact_match = {}
+
+        if not hasattr(
+            evidence,
+            "alignment_score"
+        ):
+
+            evidence.alignment_score = 0.0
+
+        if not hasattr(
+            evidence,
+            "fact_score"
+        ):
+
+            evidence.fact_score = 0.0
+
+        if not hasattr(
+            evidence,
+            "final_score"
+        ):
+
+            evidence.final_score = 0.0
+
+        # ==========================================
+        # EVIDENCE SCORING
+        # ==========================================
+
+        scored = compute_evidence_score(
+
+            claim,
+            evidence,
+            evidence_list
+        )
+
+        scored_evidence.append(
+            scored
+        )
+
+    # ==========================================
+    # SAFETY CHECK
+    # ==========================================
+
+    if not scored_evidence:
+
+        return {
+
+            "verdict": "NEUTRAL",
+
+            "confidence": 0.0,
+
+            "top_evidence": None,
+
+            "margin": 0,
+
+            "cross_contradictions": [],
+
+            "evidence_clusters": []
+        }
+
+    # ==========================================
+    # SORT BY FINAL SCORE
+    # ==========================================
+
+    scored_evidence.sort(
+
+        key=lambda x: getattr(
+            x,
+            "final_score",
+            0.0
+        ),
+
+        reverse=True
+    )
+
+    # ==========================================
+    # EVIDENCE CLUSTERING
+    # ==========================================
+
+    clusters = cluster_evidence(
+        scored_evidence[:10]
+    )
+
+    cluster_analysis = analyze_clusters(
+        clusters
+    )
+
+    # ==========================================
+    # CLUSTER BOOSTS
+    # ==========================================
+
+    entailment_cluster_boost = 0
+
+    contradiction_cluster_boost = 0
+
+    neutral_cluster_boost = 0
+
+    for cluster in cluster_analysis:
+
+        source_bonus = min(
+            cluster["unique_sources"],
+            4
+        )
+
+        cluster_strength = (
+
+            cluster["size"]
+            *
+            source_bonus
+            *
+            1.5
+        )
+
+        if cluster["label"] == "ENTAILMENT":
+
+            entailment_cluster_boost += (
+                cluster_strength
+            )
+
+        elif cluster["label"] == "CONTRADICTION":
+
+            contradiction_cluster_boost += (
+                cluster_strength
+            )
+
+        else:
+
+            neutral_cluster_boost += (
+                cluster_strength
+            )
+
+    # ==========================================
+    # CROSS-EVIDENCE CONTRADICTION ANALYSIS
+    # ==========================================
+
+    contradiction_pairs = []
+
+    contradiction_penalty = 0
+
+    top_window = scored_evidence[:5]
+
+    for i in range(len(top_window)):
+
+        for j in range(i + 1, len(top_window)):
+
+            evidence_a = top_window[i]
+
+            evidence_b = top_window[j]
+
+            conflicts_a = (
+                getattr(
+                    evidence_a,
+                    "fact_match",
+                    {}
+                ).get(
+                    "conflicts",
+                    []
+                )
+            )
+
+            conflicts_b = (
+                getattr(
+                    evidence_b,
+                    "fact_match",
+                    {}
+                ).get(
+                    "conflicts",
+                    []
+                )
+            )
+
+            opposite_labels = (
+
+                (
+                    evidence_a.nli_label
+                    ==
+                    "ENTAILMENT"
+
+                    and
+
+                    evidence_b.nli_label
+                    ==
+                    "CONTRADICTION"
+                )
+
+                or
+
+                (
+                    evidence_a.nli_label
+                    ==
+                    "CONTRADICTION"
+
+                    and
+
+                    evidence_b.nli_label
+                    ==
+                    "ENTAILMENT"
+                )
+            )
+
+            strong_conflict = (
+
+                "action_conflict"
+                in conflicts_a
+
+                or
+
+                "action_conflict"
+                in conflicts_b
+
+                or
+
+                "year_conflict"
+                in conflicts_a
+
+                or
+
+                "year_conflict"
+                in conflicts_b
+
+                or
+
+                "number_conflict"
+                in conflicts_a
+
+                or
+
+                "number_conflict"
+                in conflicts_b
+
+                or
+
+                "negation_conflict"
+                in conflicts_a
+
+                or
+
+                "negation_conflict"
+                in conflicts_b
+            )
+
+            if opposite_labels or strong_conflict:
+
+                contradiction_pairs.append({
+
+                    "evidence_a":
+                    getattr(
+                        evidence_a,
+                        "title",
+                        "unknown"
+                    ),
+
+                    "evidence_b":
+                    getattr(
+                        evidence_b,
+                        "title",
+                        "unknown"
+                    ),
+
+                    "label_a":
+                    evidence_a.nli_label,
+
+                    "label_b":
+                    evidence_b.nli_label,
+
+                    "conflicts_a":
+                    conflicts_a,
+
+                    "conflicts_b":
+                    conflicts_b
+                })
+
+                contradiction_penalty += 2
+
+    # ==========================================
+    # CONSENSUS ANALYSIS
+    # ==========================================
+
+    consensus = compute_consensus(
+        scored_evidence[:10]
+    )
+
+    # ==========================================
+    # TOP EVIDENCE
+    # ==========================================
+
+    top = scored_evidence[0]
+
+    # ==========================================
+    # LABEL COUNTS
+    # ==========================================
+
+    entailment_count = 0
+
+    contradiction_count = 0
+
+    neutral_count = 0
+
+    # ==========================================
+    # WEIGHTED LABEL SCORES
+    # ==========================================
+
+    entailment_score = 0
+
+    contradiction_score = 0
+
+    neutral_score = 0
+
+    for evidence in scored_evidence[:5]:
+
+        if evidence.nli_label == "ENTAILMENT":
+
+            entailment_count += 1
+
+            entailment_score += (
+                getattr(
+                    evidence,
+                    "final_score",
+                    0.0
+                )
+            )
+
+        elif evidence.nli_label == "CONTRADICTION":
+
+            contradiction_count += 1
+
+            contradiction_score += (
+                getattr(
+                    evidence,
+                    "final_score",
+                    0.0
+                )
+            )
+
+        else:
+
+            neutral_count += 1
+
+            neutral_score += (
+                getattr(
+                    evidence,
+                    "final_score",
+                    0.0
+                )
+            )
+
+    # ==========================================
+    # APPLY CLUSTER BOOSTS
+    # ==========================================
+
+    entailment_score += (
+        entailment_cluster_boost
+    )
+
+    contradiction_score += (
+        contradiction_cluster_boost
+    )
+
+    neutral_score += (
+        neutral_cluster_boost
+    )
+
+    # ==========================================
+    # APPLY CONTRADICTION PENALTY
+    # ==========================================
+
+    entailment_score -= contradiction_penalty
+
+    contradiction_score += (
+        contradiction_penalty * 0.5
+    )
+
+    # ==========================================
+    # WEIGHTED VOTING
+    # ==========================================
+
+    label_scores = {
+
+        "ENTAILMENT": entailment_score,
+
+        "NEUTRAL": neutral_score,
+
+        "CONTRADICTION": contradiction_score
+    }
+
+    weighted_winner = max(
+
+        label_scores,
+
+        key=label_scores.get
+    )
+
+    # ==========================================
+    # DOMINANCE MARGIN
+    # ==========================================
+
+    second_score = 0
+
+    if len(scored_evidence) > 1:
+
+        second_score = (
+            getattr(
+                scored_evidence[1],
+                "final_score",
+                0.0
+            )
+        )
+
+    margin = (
+        getattr(
+            top,
+            "final_score",
+            0.0
+        )
+        -
+        second_score
+    )
+
+    # ==========================================
+    # INITIAL LABEL
+    # ==========================================
+
+    verdict = weighted_winner
+
+    # ==========================================
+    # STRONG ENTAILMENT OVERRIDE
+    # ==========================================
+
+    strong_entailments = [
+
+        e for e in scored_evidence[:5]
+
+        if (
+
+            e.nli_label == "ENTAILMENT"
+
+            and
+
+            getattr(
+                e,
+                "final_score",
+                0.0
+            ) >= 30
+
+            and
+
+            getattr(
+                e,
+                "alignment_score",
+                0.0
+            ) >= 0.60
+
+        )
+    ]
+
+    if len(strong_entailments) >= 1:
+
+        verdict = "ENTAILMENT"
+
+    # ==========================================
+    # STRONG CONTRADICTION OVERRIDE
+    # ==========================================
+
+    strong_contradictions = [
+
+        e for e in scored_evidence[:5]
+
+        if (
+
+            e.nli_label == "CONTRADICTION"
+
+            and
+
+            getattr(
+                e,
+                "final_score",
+                0.0
+            ) >= 30
+
+            and
+
+            getattr(
+                e,
+                "alignment_score",
+                0.0
+            ) >= 0.60
+
+        )
+    ]
+
+    if len(strong_contradictions) >= 1:
+
+        verdict = "CONTRADICTION"
+
+    # ---
+    # SINGLE strong evidence override
+    # ---
+    if (
+        top.nli_label == "ENTAILMENT"
+        and
+        top.nli_confidence >= 0.90
+        and
+        top.final_score >= 35
+        and top.alignment_score >= 0.50
+    ):
+        verdict = "ENTAILMENT"
+
+    # ==========================================
+    # FALLBACK MAJORITY LOGIC
+    # ==========================================
+
+    if verdict == "NEUTRAL":
+
+        if entailment_count >= 2:
+
+            verdict = "ENTAILMENT"
+
+        elif contradiction_count >= 2:
+
+            verdict = "CONTRADICTION"
+
+    # ==========================================
+    # STRONG ENTAILMENT RULE
+    # ==========================================
+
+    if (
+
+        entailment_count >= 2
+
+        and
+
+        getattr(
+            top,
+            "alignment_score",
+            0.0
+        ) > 0.60
+
+        and
+
+        getattr(
+            top,
+            "fact_score",
+            0.0
+        ) > 10
+
+    ):
+
+        verdict = "ENTAILMENT"
+
+    # ==========================================
+    # STRONG CONTRADICTION RULE
+    # ==========================================
+
+    if (
+
+        contradiction_count >= 2
+
+        and
+
+        getattr(
+            top,
+            "alignment_score",
+            0.0
+        ) > 0.60
+
+    ):
+
+        verdict = "CONTRADICTION"
+
+    # ==========================================
+    # OVERRIDE NEUTRAL
+    # ==========================================
+
+    if (
+
+        getattr(
+            top,
+            "final_score",
+            0.0
+        ) > 25
+
+        and
+
+        getattr(
+            top,
+            "alignment_score",
+            0.0
+        ) > 0.40
+
+        and
+
+        getattr(
+            top,
+            "fact_score",
+            0.0
+        ) > 12
+
+    ):
+
+        if top.nli_label == "NEUTRAL":
+
+            verdict = "ENTAILMENT"
+
+    # ==========================================
+    # HIGH CONSENSUS OVERRIDE
+    # ==========================================
+
+    if (
+
+        entailment_score > neutral_score
+
+        and
+
+        entailment_score > contradiction_score
+
+        and
+
+        entailment_score > 40
+
+    ):
+
+        verdict = "ENTAILMENT"
+
+    # ==========================================
+    # CONTRADICTION INSTABILITY CHECK
+    # ==========================================
+    real_contradictions = [
+        pair for pair in contradiction_pairs
+
+        if (
+            pair["label_a"] == "CONTRADICTION"
+            or
+            pair["label_b"] == "CONTRADICTION"
+        )
+    ]
+
+    if (
+
+        len(contradiction_pairs) >= 2
+
+        and
+
+        verdict == "ENTAILMENT"
+    ):
+
+        verdict = "NEUTRAL"
+
+    # ==========================================
+    # CLUSTER STABILITY CHECK
+    # ==========================================
+
+    strong_entailment_clusters = len([
+
+        c for c in cluster_analysis
+
+        if (
+
+            c["label"] == "ENTAILMENT"
+
+            and
+
+            c["size"] >= 2
+        )
+    ])
+
+    strong_contradiction_clusters = len([
+
+        c for c in cluster_analysis
+
+        if (
+
+            c["label"] == "CONTRADICTION"
+
+            and
+
+            c["size"] >= 2
+        )
+    ])
+
+    if (
+
+        strong_contradiction_clusters
+        >
+        strong_entailment_clusters
+
+        and
+
+        verdict == "ENTAILMENT"
+    ):
+
+        verdict = "NEUTRAL"
+
+    # ==========================================
+    # CONFIDENCE
+    # ==========================================
+
+    confidence = min(
+
+        1.0,
+
+        (
+            (
+                getattr(
+                    top,
+                    "final_score",
+                    0.0
+                )
+                /
+                40
+            )
+            * 0.5
+            +
+            consensus["strength"]
+            * 0.3
+            +
+            (
+                label_scores.get(
+                    verdict,
+                    0
+                )
+                /
+                100
+            )
+            * 0.2
+        )
+    )
+
+    # ==========================================
+    # CONFIDENCE REDUCTION
+    # ==========================================
+
+    confidence -= (
+        contradiction_penalty * 0.02
+    )
+
+    confidence = max(
+        confidence,
+        0.0
+    )
+
+    # ==========================================
+    # RETURN
+    # ==========================================
+
+    return {
+
+        "verdict": verdict,
+
+        "confidence": confidence,
+
+        "top_evidence": top,
+
+        "margin": margin,
+
+        "consensus": consensus,
+
+        "label_scores": label_scores,
+
+        "cross_contradictions":
+        contradiction_pairs,
+
+        "contradiction_penalty":
+        contradiction_penalty,
+
+        "evidence_clusters":
+        cluster_analysis
+    }
+
+
+================================================================================
+FILE: .\analysis\verdict_explainer.py
+================================================================================
+
+import ollama
+
+
+def generate_verdict_explanation(
+    claim,
+    verdict,
+    evidence_list
+):
+
+    try:
+
+        evidence_text = "\n\n".join([
+
+            f"Evidence {i+1}: {e.content}"
+
+            for i, e in enumerate(
+                evidence_list[:3]
+            )
+        ])
+
+        prompt = f"""
+Claim:
+{claim}
+
+Verdict:
+{verdict}
+
+Evidence:
+{evidence_text}
+
+Explain why this verdict was reached.
+
+Use only the evidence.
+
+Do not determine the verdict yourself.
+
+Keep the explanation under 150 words.
+"""
+
+        response = ollama.chat(
+
+            model="qwen2.5-coder:3b",
+
+            options={
+                "temperature": 0.1
+            },
+
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        )
+
+        return response["message"]["content"]
+
+    except Exception as e:
+
+        print("QWEN ERROR:", e)
+
+        return ""
+
+
+================================================================================
+FILE: .\analysis\wikidata_utils.py
+================================================================================
+
+# analysis/wikidata_utils.py
+
+from functools import lru_cache
+
+from rapidfuzz import fuzz
+
+
+# =====================================================
+# KNOWN ENTITY ALIASES
+# =====================================================
+
+ENTITY_ALIASES = {
+
+    "who": "world health organization",
+
+    "bjp": "bharatiya janata party",
+
+    "congress": "indian national congress",
+
+    "aiims": "all india institute of medical sciences",
+
+    "un": "united nations",
+
+    "us": "united states",
+
+    "usa": "united states",
+
+    "uk": "united kingdom",
+
+    "nasa": "national aeronautics and space administration",
+
+    "isro": "indian space research organisation",
+
+    "pm modi": "narendra modi",
+
+    "cm": "chief minister"
+}
+
+
+# =====================================================
+# NORMALIZE ENTITY
+# =====================================================
+
+@lru_cache(maxsize=2048)
+def normalize_entity(entity):
+
+    if not entity:
+
+        return ""
+
+    entity = entity.lower().strip()
+
+    entity = entity.replace(".", "")
+
+    entity = entity.replace(",", "")
+
+    entity = entity.replace("-", " ")
+
+    entity = " ".join(entity.split())
+
+    # alias expansion
+
+    if entity in ENTITY_ALIASES:
+
+        return ENTITY_ALIASES[entity]
+
+    return entity
+
+
+# =====================================================
+# ENTITY SIMILARITY
+# =====================================================
+
+def entity_similarity(entity_a, entity_b):
+
+    entity_a = normalize_entity(entity_a)
+
+    entity_b = normalize_entity(entity_b)
+
+    if not entity_a or not entity_b:
+
+        return 0
+
+    return fuzz.token_sort_ratio(
+
+        entity_a,
+
+        entity_b
+
+    ) / 100.0
+
+
+# =====================================================
+# ENTITY MATCH
+# =====================================================
+
+def entities_match(
+
+    entity_a,
+
+    entity_b,
+
+    threshold=0.85
+):
+
+    similarity = entity_similarity(
+
+        entity_a,
+
+        entity_b
+    )
+
+    return similarity >= threshold
+
+
+================================================================================
+FILE: .\analysis\__init__.py
+================================================================================
+
+
+
+================================================================================
+FILE: .\orchestrator\execution_state.py
+================================================================================
+
+from dataclasses import dataclass, field
+from typing import List, Dict, Any
+
+
+@dataclass
+class ExecutionState:
+
+    # =====================================================
+    # INPUT
+    # =====================================================
+
+    claim: str = ""
+
+    # =====================================================
+    # UNDERSTANDING
+    # =====================================================
+
+    decomposition: Dict[str, Any] = field(
+        default_factory=dict
+    )
+
+    entities: List[Dict] = field(
+        default_factory=list
+    )
+
+    retrieval_queries: List[str] = field(
+        default_factory=list
+    )
+
+    # =====================================================
+    # RETRIEVAL
+    # =====================================================
+
+    raw_evidence: List[Dict] = field(
+        default_factory=list
+    )
+
+    ranked_evidence: List[Dict] = field(
+        default_factory=list
+    )
+
+    # =====================================================
+    # ANALYSIS
+    # =====================================================
+
+    semantic_results: List[Dict] = field(
+        default_factory=list
+    )
+
+    nli_results: List[Dict] = field(
+        default_factory=list
+    )
+
+    contradiction_results: Dict = field(
+        default_factory=dict
+    )
+
+    consensus_results: Dict = field(
+        default_factory=dict
+    )
+
+    forensic_results: Dict = field(
+        default_factory=dict
+    )
+
+    temporal_results: Dict = field(
+        default_factory=dict
+    )
+
+    # =====================================================
+    # REASONING
+    # =====================================================
+
+    judge_results: Dict = field(
+        default_factory=dict
+    )
+
+    calibrated_results: Dict = field(
+        default_factory=dict
+    )
+
+    # =====================================================
+    # FINAL OUTPUT
+    # =====================================================
+
+    final_verdict: str = "UNKNOWN"
+
+    confidence_score: float = 0.0
+
+    final_report: str = ""
+
+
+================================================================================
+FILE: .\orchestrator\pipeline_controller.py
+================================================================================
+
+from understanding.query_planner import (
+    build_search_queries
+)
+from retrieval.hybrid_retriever import (
+    retrieve_evidence
+)
+from analysis.verdict_aggregator import (
+    aggregate_verdicts
+)
+from analysis.report_generator import (
+    build_report
+)
+from types import SimpleNamespace
+from analysis.verdict_explainer import (
+    generate_verdict_explanation
+)
+
+# =====================================================
+# MAIN VERIFICATION PIPELINE
+# =====================================================
+
+
+class VerificationPipeline:
+
+    def __init__(self):
+
+        pass
+
+    # =================================================
+    # RUN PIPELINE
+    # =================================================
+
+    def run(
+        self,
+        claim
+    ):
+
+        # =============================================
+        # BASIC DECOMPOSITION PLACEHOLDER
+        # =============================================
+
+        decomposition = {
+
+            "entities": [],
+
+            "noun_chunks": [],
+
+            "actions": []
+        }
+
+        # =============================================
+        # QUERY GENERATION
+        # =============================================
+
+        queries = build_search_queries(
+
+            claim,
+
+            decomposition
+        )
+
+        # =============================================
+        # RETRIEVAL
+        # =============================================
+
+        retrieval_result = retrieve_evidence(
+
+            claim=claim,
+
+            queries=queries
+        )
+
+        evidence = retrieval_result.get(
+            "evidence",
+            []
+        )
+
+        # =============================================
+        # VERDICT AGGREGATION
+        # =============================================
+
+        verdict_result = aggregate_verdicts(
+
+            claim,
+
+            evidence
+        )
+
+        explanation = generate_verdict_explanation(
+
+            claim=claim,
+
+            verdict=verdict_result.get(
+
+                "verdict",
+                "NEUTRAL"
+            ),
+            evidence_list=evidence
+        )
+        # =============================================
+        # BUILD STATE OBJECT
+        # =============================================
+
+        state = SimpleNamespace(
+
+            claim=claim,
+
+            retrieval_queries=queries,
+
+            ranked_evidence=evidence,
+
+            nli_results=evidence,
+
+            final_verdict=verdict_result.get(
+                "verdict",
+                "NEUTRAL"
+            ),
+
+            confidence_score=verdict_result.get(
+                "confidence",
+                0.0
+            ),
+            verdict_explanation=explanation,
+
+            decomposition=decomposition,
+
+            claim_frame=None,
+
+            entities=decomposition.get(
+                "entities",
+                []
+            ),
+
+            stage_logs=retrieval_result.get(
+                "stage_logs",
+                []
+            ),
+
+            engines_used=retrieval_result.get(
+                "engines_used",
+                []
+            ),
+
+            consensus=verdict_result.get(
+                "consensus",
+                {}
+            )
+        )
+
+        # =============================================
+        # REPORT GENERATION
+        # =============================================
+
+        report = build_report(
+            state
+        )
+
+        state.final_report = report
+
+        # =============================================
+        # RETURN
+        # =============================================
+
+        return state
+
+
+================================================================================
+FILE: .\orchestrator\__init__.py
+================================================================================
+
+
+
+================================================================================
+FILE: .\reasoning\__init__.py
+================================================================================
+
+
+
+================================================================================
+FILE: .\retrieval\bm25_retriever.py
+================================================================================
+
+import re
+from rank_bm25 import BM25Okapi
+
+
+# =====================================================
+# TOKENIZER
+# =====================================================
+
+def tokenize(text):
+
+    if not text:
+
+        return []
+
+    text = text.lower()
+
+    tokens = re.findall(
+
+        r"\b\w+\b",
+
+        text
+    )
+
+    return tokens
+
+
+# =====================================================
+# BM25 RETRIEVAL
+# =====================================================
+
+def bm25_rank_evidence(
+    claim,
+    evidence_list,
+    top_k=10
+):
+
+    if not evidence_list:
+
+        return []
+
+    corpus = []
+
+    for evidence in evidence_list:
+
+        combined = (
+
+            f"{evidence.title} "
+            f"{evidence.content}"
+
+        )
+
+        tokens = tokenize(
+            combined
+        )
+
+        corpus.append(tokens)
+
+    bm25 = BM25Okapi(
+        corpus
+    )
+
+    query_tokens = tokenize(
+        claim
+    )
+
+    scores = bm25.get_scores(
+        query_tokens
+    )
+
+    scored = []
+
+    for evidence, score in zip(
+        evidence_list,
+        scores
+    ):
+
+        evidence.retrieval_score = float(
+            score
+        )
+
+        scored.append(
+            evidence
+        )
+
+    scored.sort(
+
+        key=lambda x: x.retrieval_score,
+
+        reverse=True
+    )
+
+    return scored[:top_k]
+
+
+================================================================================
+FILE: .\retrieval\cross_encoder_reranker.py
+================================================================================
+
+from sentence_transformers import CrossEncoder
+
+
+reranker = CrossEncoder(
+    "cross-encoder/ms-marco-MiniLM-L-6-v2"
+)
+
+
+def rerank_evidence(
+    claim,
+    evidence_list
+):
+
+    pairs = []
+
+    for evidence in evidence_list:
+
+        pairs.append([
+            claim,
+            evidence.content
+        ])
+
+    scores = reranker.predict(
+        pairs
+    )
+
+    scored = list(
+        zip(
+            evidence_list,
+            scores
+        )
+    )
+
+    scored.sort(
+        key=lambda x: x[1],
+        reverse=True
+    )
+
+    ranked_evidence = []
+
+    for evidence, score in scored:
+
+        evidence.reranker_score = (
+            float(score)
+        )
+
+        ranked_evidence.append(
+            evidence
+        )
+
+    return ranked_evidence
+
+
+================================================================================
+FILE: .\retrieval\evidence_deduplicator.py
+================================================================================
+
+from rapidfuzz import fuzz
+from urllib.parse import urlparse
+
+
+# =====================================================
+# URL NORMALIZATION
+# =====================================================
+
+def normalize_url(url):
+
+    if not url:
+
+        return ""
+
+    parsed = urlparse(url)
+
+    normalized = (
+
+        parsed.netloc.lower()
+        +
+        parsed.path.lower()
+    )
+
+    normalized = normalized.replace(
+        "/",
+        ""
+    )
+
+    normalized = normalized.replace(
+        "-",
+        ""
+    )
+
+    return normalized
+
+
+# =====================================================
+# TEXT CLEANING
+# =====================================================
+
+def clean_text(text):
+
+    if not text:
+
+        return ""
+
+    text = text.lower()
+
+    text = " ".join(
+        text.split()
+    )
+
+    return text
+
+
+# =====================================================
+# TITLE SIMILARITY
+# =====================================================
+
+def title_similarity(
+    title_a,
+    title_b
+):
+
+    return fuzz.token_sort_ratio(
+
+        clean_text(title_a),
+
+        clean_text(title_b)
+    )
+
+
+# =====================================================
+# CONTENT SIMILARITY
+# =====================================================
+
+def content_similarity(
+    text_a,
+    text_b
+):
+
+    return fuzz.token_set_ratio(
+
+        clean_text(text_a),
+
+        clean_text(text_b)
+    )
+
+
+# =====================================================
+# EVENT SIGNATURE
+# =====================================================
+
+def build_event_signature(evidence):
+
+    title = clean_text(
+        getattr(
+            evidence,
+            "title",
+            ""
+        )
+    )
+
+    content = clean_text(
+        getattr(
+            evidence,
+            "content",
+            ""
+        )
+    )
+
+    combined = (
+        title
+        +
+        " "
+        +
+        content
+    )
+
+    important_terms = []
+
+    for token in combined.split():
+
+        if len(token) >= 4:
+
+            important_terms.append(
+                token
+            )
+
+    important_terms = sorted(
+        list(set(important_terms))
+    )
+
+    signature = " ".join(
+        important_terms[:15]
+    )
+
+    return signature
+
+
+# =====================================================
+# DUPLICATE CHECK
+# =====================================================
+
+def is_duplicate(
+    evidence,
+    existing,
+    threshold
+):
+
+    # ==========================================
+    # URL SIMILARITY
+    # ==========================================
+
+    url_a = normalize_url(
+        getattr(
+            evidence,
+            "source_url",
+            ""
+        )
+    )
+
+    url_b = normalize_url(
+        getattr(
+            existing,
+            "source_url",
+            ""
+        )
+    )
+
+    if url_a and url_b:
+
+        if url_a == url_b:
+
+            return True
+
+        url_similarity = fuzz.ratio(
+            url_a,
+            url_b
+        )
+
+        if url_similarity >= 95:
+
+            return True
+
+    # ==========================================
+    # TITLE SIMILARITY
+    # ==========================================
+
+    title_score = title_similarity(
+
+        getattr(
+            evidence,
+            "title",
+            ""
+        ),
+
+        getattr(
+            existing,
+            "title",
+            ""
+        )
+    )
+
+    # ==========================================
+    # CONTENT SIMILARITY
+    # ==========================================
+
+    content_score = content_similarity(
+
+        getattr(
+            evidence,
+            "content",
+            ""
+        ),
+
+        getattr(
+            existing,
+            "content",
+            ""
+        )
+    )
+
+    # ==========================================
+    # EVENT SIGNATURE SIMILARITY
+    # ==========================================
+
+    signature_a = build_event_signature(
+        evidence
+    )
+
+    signature_b = build_event_signature(
+        existing
+    )
+
+    event_similarity = fuzz.token_set_ratio(
+
+        signature_a,
+
+        signature_b
+    )
+
+    # ==========================================
+    # HARD DUPLICATE
+    # ==========================================
+
+    if title_score >= 95:
+
+        return True
+
+    if content_score >= threshold:
+
+        return True
+
+    # ==========================================
+    # SAME EVENT DETECTION
+    # ==========================================
+
+    if (
+
+        title_score >= 80
+
+        and
+
+        event_similarity >= 85
+    ):
+
+        return True
+
+    # ==========================================
+    # VERY HIGH SEMANTIC OVERLAP
+    # ==========================================
+
+    if (
+
+        content_score >= 88
+
+        and
+
+        event_similarity >= 88
+    ):
+
+        return True
+
+    return False
+
+
+# =====================================================
+# BEST EVIDENCE SELECTION
+# =====================================================
+
+def choose_better_evidence(
+    evidence_a,
+    evidence_b
+):
+
+    score_a = getattr(
+        evidence_a,
+        "reranker_score",
+        0
+    )
+
+    score_b = getattr(
+        evidence_b,
+        "reranker_score",
+        0
+    )
+
+    # ==========================================
+    # PREFER HIGHER RERANK SCORE
+    # ==========================================
+
+    if score_a > score_b:
+
+        return evidence_a
+
+    if score_b > score_a:
+
+        return evidence_b
+
+    # ==========================================
+    # PREFER LONGER CONTENT
+    # ==========================================
+
+    len_a = len(
+        getattr(
+            evidence_a,
+            "content",
+            ""
+        )
+    )
+
+    len_b = len(
+        getattr(
+            evidence_b,
+            "content",
+            ""
+        )
+    )
+
+    if len_a >= len_b:
+
+        return evidence_a
+
+    return evidence_b
+
+
+# =====================================================
+# MAIN DEDUPLICATION
+# =====================================================
+
+def deduplicate_evidence(
+    evidence_list,
+    threshold=90
+):
+
+    unique = []
+
+    for evidence in evidence_list:
+
+        duplicate_found = False
+
+        for idx, existing in enumerate(unique):
+
+            if is_duplicate(
+
+                evidence,
+                existing,
+                threshold
+            ):
+
+                better = choose_better_evidence(
+
+                    evidence,
+                    existing
+                )
+
+                unique[idx] = better
+
+                duplicate_found = True
+
+                break
+
+        if not duplicate_found:
+
+            unique.append(
+                evidence
+            )
+
+    return unique
+
+
+================================================================================
+FILE: .\retrieval\hybrid_retriever.py
+================================================================================
+
+from understanding.claim_classifier import (
+    classify_claim,
+    determine_retrieval_strategy
+)
+
+from retrieval.evidence_deduplicator import (
+    deduplicate_evidence
+)
+
+from retrieval.cross_encoder_reranker import (
+    rerank_evidence
+)
+
+from retrieval.web_search import (
+    search_web
+)
+from retrieval.bm25_retriever import (bm25_rank_evidence)
+
+from analysis.nli_analyzer import (
+    analyze_claim_evidence
+)
+
+# =====================================================
+# CONFIGURATION
+# =====================================================
+
+MIN_EVIDENCE_COUNT = 5
+
+MIN_STRONG_MATCHES = 3
+
+MIN_RERANK_SCORE = 0.60
+
+MAX_TOTAL_EVIDENCE = 30
+
+MAX_RESULTS_PER_QUERY = 5
+
+MAX_QUERIES_PER_ENGINE = 3
+
+MAX_EMPTY_ENGINES = 2
+
+MIN_ENGINE_YIELD = 2
+
+SATURATION_LIMIT = 2
+
+
+# =====================================================
+# EVIDENCE SUFFICIENCY CHECK
+# =====================================================
+
+def enough_evidence(
+    evidence
+):
+
+    if len(evidence) >= MIN_EVIDENCE_COUNT:
+
+        strong_matches = [
+
+            item for item in evidence
+
+            if getattr(
+                item,
+                "reranker_score",
+                0
+            ) >= MIN_RERANK_SCORE
+        ]
+
+        if len(strong_matches) >= MIN_STRONG_MATCHES:
+
+            return True
+
+    return False
+
+
+# =====================================================
+# ENGINE EXECUTION
+# =====================================================
+
+def run_engine(
+    engine,
+    query
+):
+
+    try:
+
+        print(f"\n[ENGINE] {engine}")
+        print(f"[QUERY] {query}")
+
+        results = search_web(
+
+            query=query,
+
+            engine=engine
+        )
+
+        print(
+            f"[RESULT COUNT] {len(results)}"
+        )
+
+        if not results:
+
+            return []
+
+        return results[
+            :MAX_RESULTS_PER_QUERY
+        ]
+
+    except Exception as e:
+
+        print("\n[SEARCH ERROR]")
+        print(str(e))
+
+        return []
+
+
+# =====================================================
+# QUERY PRIORITIZATION
+# =====================================================
+
+def prioritize_queries(
+    queries
+):
+
+    sorted_queries = sorted(
+
+        queries,
+
+        key=lambda q: len(q.split())
+    )
+
+    return sorted_queries[
+        :MAX_QUERIES_PER_ENGINE
+    ]
+
+
+# =====================================================
+# EARLY RERANK CHECK
+# =====================================================
+
+def quick_rerank_check(
+    claim,
+    evidence
+):
+
+    if not evidence:
+
+        return []
+
+    try:
+
+        ranked = rerank_evidence(
+
+            claim,
+            evidence
+        )
+
+        return ranked
+
+    except Exception:
+
+        return evidence
+
+
+# =====================================================
+# STRONG MATCH EXTRACTION
+# =====================================================
+
+def extract_strong_matches(
+    evidence
+):
+
+    return [
+
+        item for item in evidence
+
+        if getattr(
+            item,
+            "reranker_score",
+            0
+        ) >= MIN_RERANK_SCORE
+    ]
+
+
+# =====================================================
+# RETRIEVAL SATURATION CHECK
+# =====================================================
+
+def retrieval_saturated(
+    previous_count,
+    current_count
+):
+
+    growth = (
+        current_count
+        -
+        previous_count
+    )
+
+    if growth <= 2:
+
+        return True
+
+    return False
+
+
+# =====================================================
+# ENGINE SELECTION
+# =====================================================
+
+def determine_search_engines(
+    strategy
+):
+
+    engines = ["google"]
+
+    if strategy.get(
+        "use_news_api",
+        False
+    ):
+
+        engines.append(
+            "bing"
+        )
+
+    if strategy.get(
+        "use_factcheck_api",
+        False
+    ):
+
+        engines.append(
+            "duckduckgo"
+        )
+
+    if strategy.get(
+        "use_rss",
+        False
+    ):
+
+        engines.append(
+            "google_news"
+        )
+
+    return list(set(engines))
+
+
+# =====================================================
+# MAIN RETRIEVAL PIPELINE
+# =====================================================
+
+def retrieve_evidence(
+    claim,
+    queries
+):
+
+    # ==========================================
+    # CLAIM CLASSIFICATION
+    # ==========================================
+
+    claim_info = classify_claim(
+        claim
+    )
+
+    claim_type = claim_info.get(
+        "claim_types",
+        ["general"]
+    )
+
+    strategy = claim_info.get(
+        "retrieval_strategy",
+        {}
+    )
+
+    # ==========================================
+    # ENGINE SELECTION
+    # ==========================================
+
+    engines = [
+        "duckduckgo"
+    ]
+
+    # ==========================================
+    # QUERY PRIORITIZATION
+    # ==========================================
+
+    prioritized_queries = (
+        prioritize_queries(
+            queries
+        )
+    )
+
+    all_evidence = []
+
+    used_engines = []
+
+    stage_logs = []
+
+    empty_engine_count = 0
+
+    saturation_counter = 0
+
+    previous_total = 0
+
+    # ==========================================
+    # STAGED RETRIEVAL
+    # ==========================================
+
+    for engine in engines:
+
+        engine_results = []
+
+        # --------------------------------------
+        # RUN SEARCHES
+        # --------------------------------------
+
+        for query in prioritized_queries:
+
+            results = run_engine(
+
+                engine,
+                query
+            )
+
+            engine_results.extend(
+                results
+            )
+
+        # --------------------------------------
+        # DEDUPLICATION
+        # --------------------------------------
+
+        engine_results = (
+            deduplicate_evidence(
+                engine_results
+            )
+        )
+
+        # --------------------------------------
+        # TRACK SUCCESSFUL ENGINE
+        # --------------------------------------
+
+        if engine_results:
+
+            used_engines.append(
+                engine
+            )
+
+        # --------------------------------------
+        # LOW-YIELD ENGINE DETECTION
+        # --------------------------------------
+
+        if len(engine_results) < MIN_ENGINE_YIELD:
+
+            empty_engine_count += 1
+
+        # --------------------------------------
+        # GLOBAL ADD
+        # --------------------------------------
+
+        all_evidence.extend(
+            engine_results
+        )
+
+        # --------------------------------------
+        # GLOBAL DEDUP
+        # --------------------------------------
+
+        all_evidence = (
+            deduplicate_evidence(
+                all_evidence
+            )
+        )
+
+        # --------------------------------------
+        # LIMIT TOTAL EVIDENCE
+        # --------------------------------------
+
+        all_evidence = all_evidence[
+            :MAX_TOTAL_EVIDENCE
+        ]
+
+        # --------------------------------------
+        # QUICK RERANK
+        # --------------------------------------
+
+        # -----
+        # BM25 ranking
+        # -----
+        bm25_ranked = bm25_rank_evidence(
+            claim,
+            all_evidence,
+            top_k=15
+        )
+        # ----
+        # DENSE rerank
+        # ----
+        reranked_preview = quick_rerank_check(
+            claim,
+            bm25_ranked
+        )
+
+        # --------------------------------------
+        # STRONG MATCHES
+        # --------------------------------------
+
+        strong_matches = (
+            extract_strong_matches(
+                reranked_preview
+            )
+        )
+
+        # --------------------------------------
+        # RETRIEVAL SATURATION
+        # --------------------------------------
+
+        current_total = len(
+            strong_matches
+        )
+
+        if retrieval_saturated(
+
+            previous_total,
+
+            current_total
+        ):
+
+            saturation_counter += 1
+
+        else:
+
+            saturation_counter = 0
+
+        previous_total = current_total
+
+        # --------------------------------------
+        # STAGE LOGGING
+        # --------------------------------------
+
+        stage_logs.append({
+
+            "engine":
+            engine,
+
+            "retrieved":
+            len(engine_results),
+
+            "total_evidence":
+            len(all_evidence),
+
+            "strong_matches":
+            len(strong_matches),
+
+            "saturation":
+            saturation_counter
+        })
+
+        # --------------------------------------
+        # EARLY STOP:
+        # ENOUGH STRONG EVIDENCE
+        # --------------------------------------
+
+        if enough_evidence(
+            reranked_preview
+        ):
+
+            all_evidence = (
+                reranked_preview
+            )
+
+            break
+
+        # --------------------------------------
+        # EARLY STOP:
+        # TOO MANY EMPTY ENGINES
+        # --------------------------------------
+
+        if empty_engine_count >= MAX_EMPTY_ENGINES:
+
+            break
+
+        # --------------------------------------
+        # EARLY STOP:
+        # RETRIEVAL SATURATED
+        # --------------------------------------
+
+        if saturation_counter >= SATURATION_LIMIT:
+
+            break
+
+    # ==========================================
+    # FINAL RERANK
+    # ==========================================
+
+    if all_evidence:
+
+        bm25_final = bm25_rank_evidence(
+            claim,
+            all_evidence,
+            top_k=15
+        )
+        final_ranked = rerank_evidence(
+            claim,
+            bm25_final
+        )
+        final_ranked = analyze_claim_evidence(
+            claim,
+            final_ranked
+        )
+
+    else:
+
+        final_ranked = []
+
+    # ==========================================
+    # RETURN
+    # ==========================================
+
+    return {
+
+        "evidence": final_ranked,
+
+        "engines_used":
+        used_engines,
+
+        "claim_type":
+        claim_type,
+
+        "stage_logs":
+        stage_logs
+    }
+
+
+# =====================================================
+# RERANKING PIPELINE
+# =====================================================
+
+def rerank_evidence_pipeline(
+    claim,
+    evidence
+):
+
+    ranked = rerank_evidence(
+
+        claim,
+        evidence
+    )
+
+    return ranked
+
+
+================================================================================
+FILE: .\retrieval\web_search.py
+================================================================================
+
+import os
+import requests
+
+from dotenv import load_dotenv
+
+from ddgs import DDGS
+
+from schemas.evidence_schema import (
+    Evidence
+)
+
+# =====================================================
+# LOAD ENV
+# =====================================================
+
+load_dotenv()
+
+# =====================================================
+# API KEYS
+# =====================================================
+
+TAVILY_API_KEY = os.getenv(
+    "TAVILY_API_KEY"
+)
+
+SERPER_API_KEY = os.getenv(
+    "SERPER_API_KEY"
+)
+
+GOOGLE_CSE_ID = os.getenv(
+    "GOOGLE_CSE_ID"
+)
+
+YOUTUBE_API_KEY = os.getenv(
+    "YOUTUBE_API_KEY"
+)
+
+# =====================================================
+# GOOGLE CSE CONSTANTS
+# =====================================================
+
+GOOGLE_CSE_BASE_URL = (
+    "https://www.googleapis.com/customsearch/v1"
+)
+
+YOUTUBE_SEARCH_URL = (
+    "https://www.googleapis.com/youtube/v3/search"
+)
+
+# =====================================================
+# DUCKDUCKGO SEARCH
+# =====================================================
+
+
+def search_duckduckgo(
+    query,
+    max_results=5
+):
+
+    evidence_list = []
+
+    try:
+        print("\n[DDGS SEARCH]")
+        print("QUERY:", query)
+
+        with DDGS() as ddgs:
+
+            results = list(
+                ddgs.text(
+                    query,
+                    max_results=max_results
+                )
+            )
+
+            print(
+                "RAW RESULTS:",
+                len(results)
+            )
+
+            for result in results:
+
+                print("\nRAW RESULT:")
+                print(result)
+                print(type(result))
+
+                if isinstance(result, list):
+                    for sub_result in result:
+                        print("\nSUB RESULT:")
+                        print(sub_result)
+                        print(type(sub_result))
+
+                        if not isinstance(
+                            sub_result,
+                            dict
+                        ):
+                            continue
+
+                        evidence = Evidence(
+
+                            title=sub_result.get(
+                                "title",
+                                ""
+                            ),
+
+                            content=result.get(
+                                "body",
+                                ""
+                            ),
+
+                            source_url=result.get(
+                                "href",
+                                ""
+                            )
+                        )
+
+                        evidence_list.append(
+                            evidence
+                        )
+
+                elif isinstance(result, dict):
+                    evidence = Evidence(
+                        title=result.get(
+                            "title",
+                            ""
+                        ),
+                        content=result.get(
+                            "body",
+                            ""
+                        ),
+                        source_url=result.get(
+                            "href",
+                            ""
+                        )
+                    )
+                    evidence_list.append(
+                        evidence
+                    )
+    except Exception as e:
+        print("\nDDGS ERROR:")
+        print(str(e))
+
+        return []
+    return evidence_list
+
+
+# =====================================================
+# TAVILY SEARCH
+# =====================================================
+
+def search_tavily(
+    query,
+    max_results=5
+):
+
+    evidence_list = []
+
+    try:
+
+        response = requests.post(
+
+            "https://api.tavily.com/search",
+
+            json={
+
+                "api_key":
+                TAVILY_API_KEY,
+
+                "query":
+                query,
+
+                "max_results":
+                max_results,
+
+                "search_depth":
+                "advanced"
+            },
+
+            timeout=5
+        )
+
+        data = response.json()
+
+        results = data.get(
+            "results",
+            []
+        )
+
+        for result in results:
+
+            evidence = Evidence(
+
+                title=result.get(
+                    "title",
+                    ""
+                ),
+
+                content=result.get(
+                    "content",
+                    ""
+                ),
+
+                source_url=result.get(
+                    "url",
+                    ""
+                )
+            )
+
+            evidence_list.append(
+                evidence
+            )
+
+    except:
+
+        return []
+
+    return evidence_list
+
+
+# =====================================================
+# SERPER SEARCH
+# =====================================================
+
+def search_serper(
+    query,
+    max_results=5
+):
+
+    evidence_list = []
+
+    try:
+
+        response = requests.post(
+
+            "https://google.serper.dev/search",
+
+            headers={
+
+                "X-API-KEY":
+                SERPER_API_KEY,
+
+                "Content-Type":
+                "application/json"
+            },
+
+            json={
+
+                "q": query
+            },
+
+            timeout=5
+        )
+
+        data = response.json()
+
+        organic = data.get(
+            "organic",
+            []
+        )
+
+        for result in organic[:max_results]:
+
+            evidence = Evidence(
+
+                title=result.get(
+                    "title",
+                    ""
+                ),
+
+                content=result.get(
+                    "snippet",
+                    ""
+                ),
+
+                source_url=result.get(
+                    "link",
+                    ""
+                )
+            )
+
+            evidence_list.append(
+                evidence
+            )
+
+    except:
+
+        return []
+
+    return evidence_list
+
+
+# =====================================================
+# GOOGLE CSE SEARCH
+# =====================================================
+
+def search_google_cse(
+    query,
+    max_results=5
+):
+
+    evidence_list = []
+
+    try:
+
+        response = requests.get(
+
+            GOOGLE_CSE_BASE_URL,
+
+            params={
+
+                "key":
+                YOUTUBE_API_KEY,
+
+                "cx":
+                GOOGLE_CSE_ID,
+
+                "q":
+                query,
+
+                "num":
+                max_results
+            },
+
+            timeout=5
+        )
+
+        data = response.json()
+
+        items = data.get(
+            "items",
+            []
+        )
+
+        for item in items:
+
+            evidence = Evidence(
+
+                title=item.get(
+                    "title",
+                    ""
+                ),
+
+                content=item.get(
+                    "snippet",
+                    ""
+                ),
+
+                source_url=item.get(
+                    "link",
+                    ""
+                )
+            )
+
+            evidence_list.append(
+                evidence
+            )
+
+    except:
+
+        return []
+
+    return evidence_list
+
+
+# =====================================================
+# YOUTUBE SEARCH
+# =====================================================
+
+def search_youtube(
+    query,
+    max_results=5
+):
+
+    evidence_list = []
+
+    try:
+
+        response = requests.get(
+
+            YOUTUBE_SEARCH_URL,
+
+            params={
+
+                "part":
+                "snippet",
+
+                "q":
+                query,
+
+                "maxResults":
+                max_results,
+
+                "type":
+                "video",
+
+                "key":
+                YOUTUBE_API_KEY
+            },
+
+            timeout=5
+        )
+
+        data = response.json()
+
+        items = data.get(
+            "items",
+            []
+        )
+
+        for item in items:
+
+            video_id = item.get(
+                "id",
+                {}
+            ).get(
+                "videoId",
+                ""
+            )
+
+            snippet = item.get(
+                "snippet",
+                {}
+            )
+
+            title = snippet.get(
+                "title",
+                ""
+            )
+
+            description = snippet.get(
+                "description",
+                ""
+            )
+
+            video_url = (
+                f"https://www.youtube.com/watch?v={video_id}"
+            )
+
+            evidence = Evidence(
+
+                title=title,
+
+                content=description,
+
+                source_url=video_url
+            )
+
+            evidence_list.append(
+                evidence
+            )
+
+    except:
+
+        return []
+
+    return evidence_list
+
+
+# =====================================================
+# ENGINE ROUTER
+# =====================================================
+
+def search_web(
+    query,
+    engine="duckduckgo",
+    max_results=5
+):
+    print("\nWEB_SEARCH MODULE LOADED\n")
+    print("\nSEARCH_WEB CALLED")
+    print("ENGINE =", engine)
+
+    if engine == "duckduckgo":
+
+        return search_duckduckgo(
+
+            query=query,
+
+            max_results=max_results
+        )
+
+    elif engine == "tavily":
+
+        return search_tavily(
+
+            query=query,
+
+            max_results=max_results
+        )
+
+    elif engine == "serper":
+
+        return search_serper(
+
+            query=query,
+
+            max_results=max_results
+        )
+
+    elif engine == "google":
+        return search_google_cse(
+            query=query,
+            max_results=max_results
+        )
+
+    elif engine == "google_cse":
+
+        return search_google_cse(
+
+            query=query,
+
+            max_results=max_results
+        )
+
+    elif engine == "youtube":
+
+        return search_youtube(
+
+            query=query,
+
+            max_results=max_results
+        )
+
+    return []
+
+
+================================================================================
+FILE: .\retrieval\__init__.py
+================================================================================
+
+
+
+================================================================================
+FILE: .\schemas\entity_schema.py
+================================================================================
+
+from dataclasses import dataclass, field
+from typing import List, Dict
+
+
+@dataclass
+class Entity:
+
+    entity_id: str
+
+    canonical_name: str
+
+    normalized_name: str
+
+    entity_type: str
+
+    aliases: List[str] = field(
+        default_factory=list
+    )
+
+    metadata: Dict = field(
+        default_factory=dict
+    )
+
+
+================================================================================
+FILE: .\schemas\evidence_schema.py
+================================================================================
+
+from dataclasses import dataclass
+
+
+@dataclass
+class Evidence:
+
+    title: str
+
+    content: str
+
+    source_url: str
+
+    retrieval_score: float = 0.0
+
+    reranker_score: float = 0.0
+
+    semantic_score: float = 0.0
+
+    nli_label: str = "UNKNOWN"
+
+    nli_confidence: float = 0.0
+
+
+================================================================================
+FILE: .\schemas\verdict_schema.py
+================================================================================
+
+from dataclasses import dataclass
+
+
+@dataclass
+class Verdict:
+
+    label: str
+
+    confidence: float
+
+    reasoning: str
+
+
+================================================================================
+FILE: .\schemas\__init__.py
+================================================================================
+
+
+
+================================================================================
+FILE: .\synthesis\__init__.py
+================================================================================
+
+
+
+================================================================================
+FILE: .\understanding\claim_classifier.py
+================================================================================
+
+import re
+
+
+# =====================================================
+# CLAIM TYPE KEYWORDS
+# =====================================================
+
+EVENT_KEYWORDS = {
+
+    "hosted",
+    "organized",
+    "organised",
+    "held",
+    "conference",
+    "meeting",
+    "summit",
+    "festival",
+    "ceremony",
+    "event",
+    "workshop",
+    "seminar",
+    "launch"
+}
+
+STATEMENT_KEYWORDS = {
+
+    "said",
+    "announced",
+    "reported",
+    "claimed",
+    "stated",
+    "according",
+    "confirmed",
+    "declared"
+}
+
+NUMERIC_KEYWORDS = {
+
+    "killed",
+    "injured",
+    "dead",
+    "died",
+    "cases",
+    "votes",
+    "crore",
+    "million",
+    "billion",
+    "percentage",
+    "percent",
+    "km",
+    "tons",
+    "rupees",
+    "dollars"
+}
+
+MISINFORMATION_KEYWORDS = {
+
+    "fake",
+    "hoax",
+    "scam",
+    "false",
+    "misleading",
+    "propaganda"
+}
+
+QUESTION_KEYWORDS = {
+
+    "is it true",
+    "did",
+    "does",
+    "can",
+    "was",
+    "were"
+}
+
+TEMPORAL_KEYWORDS = {
+
+    "today",
+    "yesterday",
+    "breaking",
+    "currently",
+    "latest",
+    "this year",
+    "this month"
+}
+
+
+# =====================================================
+# CLAIM TYPE CLASSIFIER
+# =====================================================
+
+def classify_claim(claim):
+
+    text = claim.lower()
+
+    claim_types = []
+
+    # ==========================================
+    # MISINFORMATION CLAIM
+    # ==========================================
+
+    if any(
+        word in text
+        for word in MISINFORMATION_KEYWORDS
+    ):
+
+        claim_types.append(
+            "misinformation"
+        )
+
+    # ==========================================
+    # STATEMENT CLAIM
+    # ==========================================
+
+    if any(
+        word in text
+        for word in STATEMENT_KEYWORDS
+    ):
+
+        claim_types.append(
+            "statement"
+        )
+
+    # ==========================================
+    # EVENT CLAIM
+    # ==========================================
+
+    if any(
+        word in text
+        for word in EVENT_KEYWORDS
+    ):
+
+        claim_types.append(
+            "event"
+        )
+
+    # ==========================================
+    # NUMERIC CLAIM
+    # ==========================================
+
+    if any(
+        word in text
+        for word in NUMERIC_KEYWORDS
+    ):
+
+        claim_types.append(
+            "numeric"
+        )
+
+    # direct number detection
+
+    if re.search(r"\b\d+\b", text):
+
+        if "numeric" not in claim_types:
+
+            claim_types.append(
+                "numeric"
+            )
+
+    # ==========================================
+    # QUESTION CLAIM
+    # ==========================================
+
+    if any(
+        phrase in text
+        for phrase in QUESTION_KEYWORDS
+    ):
+
+        claim_types.append(
+            "question"
+        )
+
+    # ==========================================
+    # TEMPORAL / BREAKING CLAIM
+    # ==========================================
+
+    if any(
+        word in text
+        for word in TEMPORAL_KEYWORDS
+    ):
+
+        claim_types.append(
+            "breaking_news"
+        )
+
+    # ==========================================
+    # FALLBACK
+    # ==========================================
+
+    if not claim_types:
+
+        claim_types.append(
+            "general"
+        )
+
+    # ==========================================
+    # RETRIEVAL PRIORITY
+    # ==========================================
+
+    retrieval_strategy = determine_retrieval_strategy(
+        claim_types
+    )
+
+    return {
+
+        "claim_types": claim_types,
+
+        "retrieval_strategy":
+        retrieval_strategy
+    }
+
+
+# =====================================================
+# RETRIEVAL STRATEGY ENGINE
+# =====================================================
+
+def determine_retrieval_strategy(
+    claim_types
+):
+
+    strategy = {
+
+        "use_news_api": False,
+
+        "use_factcheck_api": False,
+
+        "use_rss": False,
+
+        "use_wikidata": False,
+
+        "priority": []
+    }
+
+    # ==========================================
+    # EVENT CLAIMS
+    # ==========================================
+
+    if "event" in claim_types:
+
+        strategy["use_news_api"] = True
+
+        strategy["priority"].append(
+            "news_search"
+        )
+
+    # ==========================================
+    # BREAKING NEWS
+    # ==========================================
+
+    if "breaking_news" in claim_types:
+
+        strategy["use_news_api"] = True
+
+        strategy["use_rss"] = True
+
+        strategy["priority"].append(
+            "latest_news"
+        )
+
+    # ==========================================
+    # MISINFORMATION CLAIMS
+    # ==========================================
+
+    if "misinformation" in claim_types:
+
+        strategy["use_factcheck_api"] = True
+
+        strategy["priority"].append(
+            "factcheck"
+        )
+
+    # ==========================================
+    # NUMERIC CLAIMS
+    # ==========================================
+
+    if "numeric" in claim_types:
+
+        strategy["priority"].append(
+            "cross_source_validation"
+        )
+
+    # ==========================================
+    # STATEMENT CLAIMS
+    # ==========================================
+
+    if "statement" in claim_types:
+
+        strategy["use_news_api"] = True
+
+        strategy["priority"].append(
+            "official_sources"
+        )
+
+    # ==========================================
+    # GENERAL CLAIMS
+    # ==========================================
+
+    if "general" in claim_types:
+
+        strategy["use_wikidata"] = True
+
+        strategy["priority"].append(
+            "knowledge_lookup"
+        )
+
+    return strategy
+
+
+================================================================================
+FILE: .\understanding\claim_decomposer.py
+================================================================================
+
+import re
+import spacy
+
+nlp = spacy.load(
+    "en_core_web_sm"
+)
+
+# ==========================================
+# BAD ENTITY TERMS
+# ==========================================
+
+BAD_ENTITY_TERMS = {
+
+    "conduct",
+    "conducted",
+
+    "host",
+    "hosts",
+    "hosted",
+    "hosting",
+
+    "organize",
+    "organized",
+    "organised",
+
+    "hold",
+    "holds",
+    "held"
+}
+
+# ==========================================
+# ACTION NORMALIZATION
+# ==========================================
+
+ACTION_NORMALIZATION = {
+
+    "hosts": "conduct",
+    "hosted": "conduct",
+    "hosting": "conduct",
+
+    "conducted": "conduct",
+
+    "organized": "conduct",
+    "organised": "conduct",
+
+    "holds": "conduct",
+    "held": "conduct",
+
+    "launched": "launch",
+
+    "announced": "announce",
+
+    "reported": "report"
+}
+
+# ==========================================
+# NEGATION WORDS
+# ==========================================
+
+NEGATION_WORDS = {
+
+    "not",
+    "never",
+    "no",
+    "none",
+    "neither",
+    "nor",
+    "without",
+    "n't"
+}
+
+
+# ==========================================
+# ACTION NORMALIZATION
+# ==========================================
+
+def normalize_action(action):
+
+    action = action.lower().strip()
+
+    return ACTION_NORMALIZATION.get(
+        action,
+        action
+    )
+
+
+# ==========================================
+# ENTITY CLEANING
+# ==========================================
+
+def clean_entity_text(text):
+
+    text = text.strip().lower()
+
+    tokens = text.split()
+
+    filtered_tokens = [
+
+        token
+
+        for token in tokens
+
+        if (
+
+            token not in BAD_ENTITY_TERMS
+
+            and
+
+            len(token) > 1
+        )
+    ]
+
+    cleaned = " ".join(
+        filtered_tokens
+    )
+
+    return cleaned.strip()
+
+
+# ==========================================
+# CLAIM DECOMPOSITION
+# ==========================================
+
+def decompose_claim(claim):
+
+    doc = nlp(claim)
+
+    entities = []
+
+    actions = []
+
+    nouns = []
+
+    noun_chunks = []
+
+    numbers = []
+
+    dates = []
+
+    negations = []
+
+    # ==========================================
+    # ENTITIES
+    # ==========================================
+
+    for ent in doc.ents:
+
+        cleaned_text = clean_entity_text(
+            ent.text
+        )
+
+        if cleaned_text:
+
+            entities.append({
+
+                "text": cleaned_text,
+
+                "label": ent.label_
+            })
+
+    # ==========================================
+    # TOKENS
+    # ==========================================
+
+    for token in doc:
+
+        token_text = token.text.lower()
+
+        # --------------------------------------
+        # ACTIONS
+        # --------------------------------------
+
+        if token.pos_ == "VERB":
+
+            if (
+
+                token.is_alpha
+
+                and
+
+                len(token.lemma_) > 2
+            ):
+
+                normalized = normalize_action(
+                    token.lemma_.lower()
+                )
+
+                actions.append(
+                    normalized
+                )
+
+        # --------------------------------------
+        # NOUNS
+        # --------------------------------------
+
+        if token.pos_ in [
+
+            "NOUN",
+            "PROPN"
+        ]:
+
+            if len(token_text) > 2:
+
+                nouns.append(
+                    token_text
+                )
+
+        # --------------------------------------
+        # NUMBERS
+        # --------------------------------------
+
+        if token.like_num:
+
+            numbers.append(
+                token_text
+            )
+
+        # --------------------------------------
+        # NEGATIONS
+        # --------------------------------------
+
+        if token_text in NEGATION_WORDS:
+
+            negations.append(
+                token_text
+            )
+
+    # ==========================================
+    # NOUN CHUNKS
+    # ==========================================
+
+    for chunk in doc.noun_chunks:
+
+        cleaned_chunk = (
+            chunk.text
+            .strip()
+            .lower()
+        )
+
+        if (
+
+            len(cleaned_chunk) > 2
+
+            and
+
+            not cleaned_chunk.isnumeric()
+        ):
+
+            noun_chunks.append(
+                cleaned_chunk
+            )
+
+    # ==========================================
+    # DATE EXTRACTION
+    # ==========================================
+
+    date_patterns = re.findall(
+
+        r"\b(?:19|20)\d{2}\b",
+
+        claim
+    )
+
+    dates.extend(date_patterns)
+
+    # ==========================================
+    # DEDUPLICATION
+    # ==========================================
+
+    entities = list({
+
+        (
+            e["text"],
+            e["label"]
+        ): e
+
+        for e in entities
+
+    }.values())
+
+    actions = list(set(actions))
+
+    nouns = list(set(nouns))
+
+    noun_chunks = list(set(noun_chunks))
+
+    numbers = list(set(numbers))
+
+    dates = list(set(dates))
+
+    negations = list(set(negations))
+
+    # ==========================================
+    # CLAIM TYPE DETECTION
+    # ==========================================
+
+    claim_lower = claim.lower()
+
+    claim_type = "general"
+
+    # ------------------------------------------
+    # STATEMENT CLAIM
+    # ------------------------------------------
+
+    if any(word in claim_lower for word in [
+
+        "said",
+        "announced",
+        "reported",
+        "claims",
+        "claim",
+        "stated",
+        "according to"
+
+    ]):
+
+        claim_type = "statement"
+
+    # ------------------------------------------
+    # EVENT CLAIM
+    # ------------------------------------------
+
+    elif any(word in claim_lower for word in [
+
+        "won",
+        "hosted",
+        "conducted",
+        "held",
+        "launched",
+        "organized",
+        "organised",
+        "performed",
+        "celebrated"
+
+    ]):
+
+        claim_type = "event"
+
+    # ------------------------------------------
+    # NUMERIC CLAIM
+    # ------------------------------------------
+
+    elif any(char.isdigit() for char in claim):
+
+        claim_type = "numeric"
+
+    # ------------------------------------------
+    # COMPARISON CLAIM
+    # ------------------------------------------
+
+    elif any(word in claim_lower for word in [
+
+        "better",
+        "worse",
+        "higher",
+        "lower",
+        "more than",
+        "less than",
+        "largest",
+        "smallest",
+        "biggest"
+
+    ]):
+
+        claim_type = "comparison"
+
+    # ------------------------------------------
+    # TEMPORAL CLAIM
+    # ------------------------------------------
+
+    elif any(word in claim_lower for word in [
+
+        "today",
+        "yesterday",
+        "tomorrow",
+        "currently",
+        "recently",
+        "in 2024",
+        "in 2025",
+        "in 2026"
+
+    ]):
+
+        claim_type = "temporal"
+
+    # ------------------------------------------
+    # CAUSAL CLAIM
+    # ------------------------------------------
+
+    elif any(word in claim_lower for word in [
+
+        "because",
+        "due to",
+        "caused",
+        "resulted in",
+        "led to"
+
+    ]):
+
+        claim_type = "causal"
+
+    # ==========================================
+    # RETURN
+    # ==========================================
+
+    return {
+
+        "entities": entities,
+
+        "actions": actions,
+
+        "nouns": nouns,
+
+        "noun_chunks": noun_chunks,
+
+        "numbers": numbers,
+
+        "dates": dates,
+
+        "negations": negations,
+
+        "claim_type": claim_type
+    }
+
+
+================================================================================
+FILE: .\understanding\claim_normalizer.py
+================================================================================
+
+import re
+
+import spacy
+
+
+nlp = spacy.load(
+    "en_core_web_sm"
+)
+
+
+# =====================================================
+# CANONICAL ACTION MAP
+# =====================================================
+
+ACTION_GROUPS = {
+
+    "conduct": [
+
+        "host",
+        "hosts",
+        "hosted",
+        "hosting",
+
+        "organize",
+        "organizes",
+        "organized",
+        "organised",
+        "organising",
+
+        "hold",
+        "holds",
+        "held",
+        "holding",
+
+        "conduct",
+        "conducted",
+        "conducting",
+
+        "run",
+        "ran",
+        "running",
+
+        "complete",
+        "completed",
+        "completes",
+        "completion",
+
+        "launch",
+        "launched",
+        "launches",
+
+        "execute",
+        "executed",
+
+        "perform",
+        "performed",
+
+        "carry",
+        "carried"
+    ],
+
+    "say": [
+
+        "said",
+        "says",
+
+        "announce",
+        "announced",
+        "announcing",
+
+        "report",
+        "reported",
+        "reports",
+
+        "claim",
+        "claimed",
+        "claims",
+
+        "state",
+        "stated",
+        "states"
+    ],
+
+    "win": [
+
+        "won",
+        "wins",
+
+        "defeat",
+        "defeated",
+
+        "beat",
+        "beats"
+    ],
+
+    "support": [
+
+        "support",
+        "supports",
+        "supported",
+
+        "back",
+        "backs",
+        "backed",
+
+        "endorse",
+        "endorsed"
+    ]
+}
+
+
+# =====================================================
+# BUILD REVERSE LOOKUP
+# =====================================================
+
+NORMALIZATION_MAP = {}
+
+for canonical, variants in (
+    ACTION_GROUPS.items()
+):
+
+    for variant in variants:
+
+        NORMALIZATION_MAP[
+            variant
+        ] = canonical
+
+
+# =====================================================
+# PHRASE NORMALIZATION
+# =====================================================
+
+PHRASE_NORMALIZATION = {
+
+    "start up": "startup",
+
+    "parting social": "farewell event",
+
+    "social parting": "farewell event",
+
+    "programme": "program"
+}
+
+
+# =====================================================
+# TEXT CLEANER
+# =====================================================
+
+def clean_text(text):
+
+    text = text.lower()
+
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    )
+
+    return text.strip()
+
+
+# =====================================================
+# NORMALIZATION
+# =====================================================
+
+def normalize_claim(claim):
+
+    claim = clean_text(
+        claim
+    )
+
+    # ==========================================
+    # PHRASE NORMALIZATION
+    # ==========================================
+
+    for old, new in (
+        PHRASE_NORMALIZATION.items()
+    ):
+
+        claim = claim.replace(
+            old,
+            new
+        )
+
+    # ==========================================
+    # NLP PIPELINE
+    # ==========================================
+
+    doc = nlp(claim)
+
+    normalized_tokens = []
+
+    for token in doc:
+
+        word = token.text.lower()
+
+        # ==========================================
+        # ACTION NORMALIZATION
+        # ==========================================
+
+        if word in NORMALIZATION_MAP:
+
+            normalized = (
+                NORMALIZATION_MAP[word]
+            )
+
+            normalized_tokens.append(
+                normalized
+            )
+
+        # ==========================================
+        # VERB LEMMATIZATION
+        # ==========================================
+
+        elif token.pos_ == "VERB":
+
+            normalized_tokens.append(
+                token.lemma_.lower()
+            )
+
+        # ==========================================
+        # DEFAULT TOKEN
+        # ==========================================
+
+        else:
+
+            normalized_tokens.append(
+                word
+            )
+
+    normalized = " ".join(
+        normalized_tokens
+    )
+
+    # ==========================================
+    # CLEANUP
+    # ==========================================
+
+    normalized = re.sub(
+        r"\s+",
+        " ",
+        normalized
+    ).strip()
+
+    return normalized
+
+
+================================================================================
+FILE: .\understanding\entity_resolver.py
+================================================================================
+
+import hashlib
+
+from schemas.entity_schema import Entity
+
+
+def normalize_entity(text):
+
+    return text.lower().strip()
+
+
+def build_entity_id(text):
+
+    return hashlib.md5(
+        text.encode()
+    ).hexdigest()
+
+
+def resolve_entities(decomposition):
+
+    resolved_entities = []
+
+    for entity in decomposition.get(
+        "entities",
+        []
+    ):
+
+        normalized = normalize_entity(
+            entity["text"]
+        )
+
+        entity_obj = Entity(
+
+            entity_id=build_entity_id(
+                normalized
+            ),
+
+            canonical_name=entity["text"],
+
+            normalized_name=normalized,
+
+            entity_type=entity["label"],
+
+            aliases=[],
+
+            metadata={}
+        )
+
+        resolved_entities.append(
+            entity_obj
+        )
+
+    return resolved_entities
+
+
+================================================================================
+FILE: .\understanding\query_planner.py
+================================================================================
+
+import re
+from datetime import datetime
+
+CURRENT_YEAR = datetime.now().year
+
+# =====================================================
+# STOPWORDS
+# =====================================================
+STOPWORDS = {
+    "the", "a", "an", "is", "was", "were", "be", "been", "being",
+    "has", "have", "had", "do", "does", "did", "of", "in", "on",
+    "at", "for", "to", "from", "by", "with", "and", "or", "but"
+}
+
+# =====================================================
+# ABBREVIATIONS
+# =====================================================
+ABBREVIATIONS = {
+    "nagaland university": "NU",
+    "indian institute of technology": "IIT",
+    "all india institute of medical sciences": "AIIMS"
+}
+
+
+# =====================================================
+# TEXT CLEANER
+# =====================================================
+def clean_text(text):
+    text = text.lower().strip()
+    text = re.sub(r"\s+", " ", text)
+    return text
+
+
+# =====================================================
+# QUERY BUILDER
+# =====================================================
+def build_search_queries(claim, decomposition):
+    queries = set()
+    claim = clean_text(claim)
+
+    # ==========================================
+    # ORIGINAL CLAIM
+    # ==========================================
+    queries.add(claim)
+
+    # ==========================================
+    # ENTITY EXTRACTION
+    # ==========================================
+    entity_names = [
+        clean_text(ent["text"])
+        for ent in decomposition.get("entities", [])
+    ]
+
+    # ==========================================
+    # NOUN CHUNKS
+    # ==========================================
+    noun_chunks = [
+        clean_text(chunk)
+        for chunk in decomposition.get("noun_chunks", [])
+    ]
+
+    # ==========================================
+    # ACTIONS
+    # ==========================================
+    actions = decomposition.get("actions", [])
+
+    # ==========================================
+    # ENTITY QUERIES
+    # ==========================================
+    if entity_names:
+        # Exact quoted
+        quoted_entities = " ".join([f'"{e}"' for e in entity_names])
+        queries.add(quoted_entities)
+
+        # Relaxed entity query
+        relaxed_entities = " ".join(entity_names)
+        queries.add(relaxed_entities)
+
+    # ==========================================
+    # NOUN CHUNK QUERIES
+    # ==========================================
+    for chunk in noun_chunks:
+        if len(chunk.split()) >= 2:
+            # Exact noun chunk
+            queries.add(f'"{chunk}"')
+            # Relaxed noun chunk
+            queries.add(chunk)
+
+    # ==========================================
+    # ENTITY + ACTION QUERY
+    # ==========================================
+    if entity_names and actions:
+        event_query = f'{" ".join(entity_names)} {" ".join(actions)}'
+        queries.add(event_query)
+
+    # ==========================================
+    # ENTITY + NOUN MIX
+    # ==========================================
+    if entity_names and noun_chunks:
+        for entity in entity_names[:2]:
+            for chunk in noun_chunks[:3]:
+                mixed_query = f"{entity} {chunk}"
+                queries.add(mixed_query)
+
+    # ==========================================
+    # COMPACT QUERY
+    # ==========================================
+    compact_words = [
+        word for word in claim.split()
+        if word.lower() not in STOPWORDS
+    ]
+    compact_query = " ".join(compact_words)
+    if compact_query:
+        queries.add(compact_query)
+
+    # ==========================================
+    # DATE VARIANTS
+    # ==========================================
+    queries.add(f"{claim} {CURRENT_YEAR}")
+
+    # ==========================================
+    # ABBREVIATION VARIANTS
+    # ==========================================
+    for full_name, short_name in ABBREVIATIONS.items():
+        if full_name in claim:
+            abbreviated = claim.replace(full_name, short_name)
+            queries.add(abbreviated)
+
+    # ==========================================
+    # EDUCATIONAL / OFFICIAL SOURCES
+    # ==========================================
+    if entity_names:
+        official_query = f'site:edu {" ".join(entity_names)}'
+        queries.add(official_query)
+
+        official_query_2 = f'site:ac.in {" ".join(entity_names)}'
+        queries.add(official_query_2)
+
+    # ==========================================
+    # SEMANTIC EVENT VARIANTS
+    # ==========================================
+    EVENT_VARIANTS = {
+        "parting": ["farewell", "sendoff"],
+        "programme": ["event", "ceremony"],
+        "social": ["gathering", "celebration"]
+    }
+
+    for original, variants in EVENT_VARIANTS.items():
+        if original in claim:
+            for variant in variants:
+                semantic_variant = claim.replace(original, variant)
+                queries.add(semantic_variant)
+
+    # ---
+    # NEWS style queries
+    # --
+    if entity_names:
+        for entity in entity_names:
+            queries.add(f"{entity} press release")
+            queries.add(f"{entity} official statement")
+            queries.add(f"{entity} announcement")
+            queries.add(f"{entity} event")
+
+    # ---
+    # TEMPORAL queries
+    # ---
+    queries.add(f"{claim} this week")
+    queries.add(f"{claim} this month")
+    queries.add(f"{claim} this year")
+
+    # ==========================================
+    # CLEANUP
+    # ==========================================
+    clean_queries = []
+    seen = set()
+
+    for query in queries:
+        query = clean_text(query)
+        if len(query) > 3 and query not in seen:
+            clean_queries.append(query)
+            seen.add(query)
+
+    # ==========================================
+    # PRIORITIZE SHORTER QUERIES
+    # ==========================================
+    clean_queries = sorted(
+        clean_queries,
+        key=lambda q: (
+            -len(q.split()),
+            q.count("")
+        )
+    )
+    return clean_queries[:15]
+
+
+================================================================================
+FILE: .\understanding\__init__.py
+================================================================================
+
+
+
+================================================================================
+FILE: .\utils\__init__.py
+================================================================================
+

@@ -33,7 +33,11 @@ EVENT_TERMS = {
     "summit",
     "workshop",
     "festival",
-    "ceremony"
+    "ceremony",
+    "world cup",
+    "tournament",
+    "match",
+    "cup"
 }
 
 # =====================================================
@@ -46,7 +50,7 @@ ENTITY_WEIGHTS = {
 
     "PERSON": 3.0,
 
-    "GPE": 2.5,
+    "GPE": 4.0,
 
     "LOC": 2.5,
 
@@ -58,7 +62,7 @@ ENTITY_WEIGHTS = {
 
     "ORDINAL": 3.0,
 
-    "EVENT": 3.0,
+    "EVENT": 3.5,
 
     "PRODUCT": 2.0
 }
@@ -82,7 +86,11 @@ NEGATION_TERMS = {
     "denied",
     "reject",
     "rejected",
-    "withdrawn"
+    "withdrawn",
+    "didn't",
+    "did not",
+    "wasn't",
+    "was not"
 }
 
 # =====================================================
@@ -139,7 +147,22 @@ ACTION_NORMALIZATION = {
     "postponed": "postpone",
 
     "won": "win",
-    "lost": "lose"
+    "wins": "win",
+    "winning": "win",
+
+    "lost": "lose",
+    "loses": "lose",
+
+    "completed": "complete",
+    "completes": "complete",
+
+    "finished": "complete",
+
+    "conducted": "conduct",
+
+    "launched": "launch",
+
+    "announced": "announce"
 }
 
 # =====================================================
@@ -167,12 +190,25 @@ CONTRADICTION_ACTIONS = {
         "lose"
     ],
 
+    "lose": [
+        "win"
+    ],
+
     "approve": [
         "reject",
         "deny"
+    ],
+
+    "complete": [
+        "cancel",
+        "postpone"
     ]
 }
 
+
+# =====================================================
+# HELPERS
+# =====================================================
 
 def entity_overlap_score(
     ids_a,
@@ -270,7 +306,7 @@ def extract_years(text):
 
 
 # =====================================================
-# WIKIDATA ENTITY RESOLUTION
+# ENTITY RESOLUTION PLACEHOLDER
 # =====================================================
 
 def enrich_entities_with_wikidata(
@@ -292,6 +328,10 @@ def enrich_entities_with_wikidata(
 
     return enriched
 
+
+# =====================================================
+# FACT STRUCTURE EXTRACTION
+# =====================================================
 
 def extract_fact_structure(text):
 
@@ -326,12 +366,20 @@ def extract_fact_structure(text):
 
     for ent in doc.ents:
 
-        raw_entities.append({
+        cleaned_text = (
+            ent.text
+            .strip()
+            .lower()
+        )
 
-            "text": ent.text.lower(),
+        if len(cleaned_text) > 1:
 
-            "label": ent.label_
-        })
+            raw_entities.append({
+
+                "text": cleaned_text,
+
+                "label": ent.label_
+            })
 
     structure["entities"] = (
         enrich_entities_with_wikidata(
@@ -348,15 +396,15 @@ def extract_fact_structure(text):
         text.lower()
     )
 
-    structure["numbers"] = numbers
+    structure["numbers"] = list(set(numbers))
 
     # ==========================================
     # YEARS
     # ==========================================
 
-    structure["years"] = extract_years(
-        text
-    )
+    structure["years"] = list(set(
+        extract_years(text)
+    ))
 
     # ==========================================
     # NEGATIONS
@@ -386,39 +434,65 @@ def extract_fact_structure(text):
     # ACTIONS
     # ==========================================
 
+    actions = []
+
     for token in doc:
 
-        if token.pos_ == "VERB":
+        if token.pos_ in ["VERB", "AUX"]:
 
             normalized = normalize_action(
                 token.lemma_.lower()
             )
 
-            structure["actions"].append(
-                normalized
-            )
+            if len(normalized) > 2:
+
+                actions.append(
+                    normalized
+                )
+
+    structure["actions"] = list(set(actions))
 
     # ==========================================
     # EVENT TERMS
     # ==========================================
 
-    for token in doc:
+    event_terms = []
 
-        if token.lemma_.lower() in EVENT_TERMS:
+    text_lower = text.lower()
 
-            structure["event_terms"].append(
-                token.lemma_.lower()
-            )
+    for event in EVENT_TERMS:
+
+        if event in text_lower:
+
+            event_terms.append(event)
+
+    structure["event_terms"] = list(set(
+        event_terms
+    ))
 
     # ==========================================
     # NOUN CHUNKS
     # ==========================================
 
+    noun_chunks = []
+
     for chunk in doc.noun_chunks:
 
-        structure["noun_chunks"].append(
-            chunk.text.lower()
+        cleaned = (
+            chunk.text
+            .strip()
+            .lower()
         )
+
+        if len(cleaned) > 2:
+
+            noun_chunks.append(
+                cleaned
+            )
+
+    structure["noun_chunks"] = list(set(
+        noun_chunks
+    ))
 
     return structure
 
@@ -532,6 +606,10 @@ def detect_contextual_conflicts(
     return list(set(conflicts))
 
 
+# =====================================================
+# CONFLICT DETECTION
+# =====================================================
+
 def detect_conflicts(
     claim_struct,
     evidence_struct
@@ -558,6 +636,12 @@ def detect_conflicts(
         evidence_struct["numbers"]
     )
 
+    shared_numbers = (
+        claim_numbers
+        &
+        evidence_numbers
+    )
+
     if (
 
         claim_numbers
@@ -568,16 +652,22 @@ def detect_conflicts(
 
         and
 
-        not (
-            claim_numbers
-            &
-            evidence_numbers
-        )
+        not shared_numbers
+
     ):
 
-        conflicts.append(
-            "number_conflict"
-        )
+        if (
+
+            len(claim_numbers) <= 2
+
+            and
+
+            len(evidence_numbers) <= 2
+        ):
+
+            conflicts.append(
+                "number_conflict"
+            )
 
     # ==========================================
     # YEAR CONFLICTS
@@ -591,6 +681,12 @@ def detect_conflicts(
         evidence_struct["years"]
     )
 
+    shared_years = (
+        claim_years
+        &
+        evidence_years
+    )
+
     if (
 
         claim_years
@@ -601,16 +697,34 @@ def detect_conflicts(
 
         and
 
-        not (
-            claim_years
-            &
-            evidence_years
-        )
+        not shared_years
+
     ):
 
-        conflicts.append(
-            "year_conflict"
-        )
+        try:
+
+            claim_year = max(
+                int(y)
+                for y in claim_years
+            )
+
+            evidence_year = max(
+                int(y)
+                for y in evidence_years
+            )
+
+            if abs(
+                claim_year
+                -
+                evidence_year
+            ) >= 2:
+
+                conflicts.append(
+                    "year_conflict"
+                )
+
+        except:
+            pass
 
     # ==========================================
     # ACTION CONFLICTS
@@ -677,6 +791,10 @@ def detect_conflicts(
     return list(set(conflicts))
 
 
+# =====================================================
+# FACT STRUCTURE COMPARISON
+# =====================================================
+
 def compare_fact_structure(
     claim,
     evidence
@@ -698,9 +816,25 @@ def compare_fact_structure(
 
     entity_score = 0
 
+    matched_pairs = set()
+
     for claim_ent in claim_struct["entities"]:
 
         for evidence_ent in evidence_struct["entities"]:
+
+            pair_key = (
+
+                claim_ent["text"],
+                evidence_ent["text"]
+            )
+
+            if pair_key in matched_pairs:
+
+                continue
+
+            matched_pairs.add(
+                pair_key
+            )
 
             # -----------------------------------------
             # WIKIDATA ENTITY BOOST
@@ -736,7 +870,7 @@ def compare_fact_structure(
                 evidence_ent["text"]
             )
 
-            if similarity >= 85:
+            if similarity >= 80:
 
                 weight = ENTITY_WEIGHTS.get(
 
@@ -765,15 +899,23 @@ def compare_fact_structure(
     # ACTION MATCHING
     # =================================================
 
-    action_overlap = len(
+    action_overlap = 0
 
-        set(claim_struct["actions"])
-        &
-        set(evidence_struct["actions"])
+    for claim_action in claim_struct["actions"]:
 
-    )
+        for evidence_action in evidence_struct["actions"]:
 
-    score += action_overlap * 2.5
+            similarity = fuzz.ratio(
+
+                claim_action,
+                evidence_action
+            )
+
+            if similarity >= 85:
+
+                action_overlap += 1
+
+    score += action_overlap * 3
 
     # =================================================
     # EVENT TERM MATCHING
@@ -787,7 +929,7 @@ def compare_fact_structure(
 
     )
 
-    score += event_overlap * 3
+    score += event_overlap * 4
 
     # =================================================
     # NUMBER MATCHING
@@ -805,11 +947,13 @@ def compare_fact_structure(
 
         if claim_numbers & evidence_numbers:
 
-            score += 2
+            score += 3
 
         else:
 
-            score -= 2
+            if len(claim_numbers) <= 2:
+
+                score -= 1
 
     # =================================================
     # YEAR MATCHING
@@ -827,11 +971,32 @@ def compare_fact_structure(
 
         if claim_years & evidence_years:
 
-            score += 3
+            score += 5
 
         else:
 
-            score -= 4
+            try:
+
+                claim_year = max(
+                    int(y)
+                    for y in claim_years
+                )
+
+                evidence_year = max(
+                    int(y)
+                    for y in evidence_years
+                )
+
+                if abs(
+                    claim_year
+                    -
+                    evidence_year
+                ) >= 2:
+
+                    score -= 5
+
+            except:
+                pass
 
     # =================================================
     # NOUN CHUNK MATCH
@@ -859,7 +1024,49 @@ def compare_fact_structure(
 
                 best_chunk_score = similarity
 
-    score += best_chunk_score * 4
+    if (
+        action_overlap > 0
+        or
+        event_overlap > 0
+        or
+        entity_score > 3
+    ):
+
+        score += best_chunk_score * 4
+
+    # =================================================
+    # SPECIAL SPORTS / EVENT BOOST
+    # =================================================
+
+    if (
+
+        claim_struct["years"]
+
+        and
+
+        evidence_struct["years"]
+
+        and
+
+        claim_struct["actions"]
+
+        and
+
+        evidence_struct["actions"]
+
+    ):
+
+        shared_actions = (
+
+            set(claim_struct["actions"])
+            &
+            set(evidence_struct["actions"])
+
+        )
+
+        if shared_actions:
+
+            score += 4
 
     # =================================================
     # CONFLICT DETECTION
@@ -876,11 +1083,11 @@ def compare_fact_structure(
 
         if conflict == "action_conflict":
 
-            score -= 5
+            score -= 6
 
         elif conflict == "year_conflict":
 
-            score -= 4
+            score -= 5
 
         elif conflict == "number_conflict":
 
@@ -888,7 +1095,7 @@ def compare_fact_structure(
 
         elif conflict == "negation_conflict":
 
-            score -= 6
+            score -= 8
 
         elif conflict == "recycled_news_conflict":
 
@@ -911,15 +1118,20 @@ def compare_fact_structure(
         evidence_struct["years"]
     ):
 
-        latest_year = max(
+        try:
 
-            int(y)
-            for y in evidence_struct["years"]
-        )
+            latest_year = max(
 
-        if latest_year >= CURRENT_YEAR - 1:
+                int(y)
+                for y in evidence_struct["years"]
+            )
 
-            score += 2
+            if latest_year >= CURRENT_YEAR - 1:
+
+                score += 2
+
+        except:
+            pass
 
     # =================================================
     # RETURN
@@ -927,7 +1139,7 @@ def compare_fact_structure(
 
     return {
 
-        "score": score,
+        "score": round(score, 3),
 
         "claim": claim_struct,
 

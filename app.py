@@ -41,7 +41,9 @@ def verify_claim(claim):
             f"### FINAL VERDICT\n\n"
             f"**{result.final_verdict}**\n\n"
             f"Confidence: "
-            f"{round(result.confidence_score, 3)}"
+            f"{round(result.confidence_score, 3)}\n\n"
+            f"## Explanation\n\n"
+            f"{result.verdict_explanation}"
         )
 
         # ==========================================

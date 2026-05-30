@@ -412,7 +412,7 @@ def retrieve_evidence(
         # --------------------------------------
 
         current_total = len(
-            all_evidence
+            strong_matches
         )
 
         if retrieval_saturated(

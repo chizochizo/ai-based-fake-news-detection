@@ -10,15 +10,19 @@ nlp = spacy.load(
 # ==========================================
 
 BAD_ENTITY_TERMS = {
+
     "conduct",
     "conducted",
+
     "host",
     "hosts",
     "hosted",
     "hosting",
+
     "organize",
     "organized",
     "organised",
+
     "hold",
     "holds",
     "held"
@@ -49,16 +53,40 @@ ACTION_NORMALIZATION = {
     "reported": "report"
 }
 
+# ==========================================
+# NEGATION WORDS
+# ==========================================
+
+NEGATION_WORDS = {
+
+    "not",
+    "never",
+    "no",
+    "none",
+    "neither",
+    "nor",
+    "without",
+    "n't"
+}
+
+
+# ==========================================
+# ACTION NORMALIZATION
+# ==========================================
 
 def normalize_action(action):
 
-    action = action.lower()
+    action = action.lower().strip()
 
     return ACTION_NORMALIZATION.get(
         action,
         action
     )
 
+
+# ==========================================
+# ENTITY CLEANING
+# ==========================================
 
 def clean_entity_text(text):
 
@@ -72,15 +100,26 @@ def clean_entity_text(text):
 
         for token in tokens
 
-        if token not in BAD_ENTITY_TERMS
+        if (
+
+            token not in BAD_ENTITY_TERMS
+
+            and
+
+            len(token) > 1
+        )
     ]
 
     cleaned = " ".join(
         filtered_tokens
     )
 
-    return cleaned
+    return cleaned.strip()
 
+
+# ==========================================
+# CLAIM DECOMPOSITION
+# ==========================================
 
 def decompose_claim(claim):
 
@@ -97,6 +136,8 @@ def decompose_claim(claim):
     numbers = []
 
     dates = []
+
+    negations = []
 
     # ==========================================
     # ENTITIES
@@ -123,25 +164,22 @@ def decompose_claim(claim):
 
     for token in doc:
 
+        token_text = token.text.lower()
+
         # --------------------------------------
         # ACTIONS
         # --------------------------------------
 
-        if (
+        if token.pos_ == "VERB":
 
-            token.pos_ in ["VERB", "AUX"]
+            if (
 
-            or
+                token.is_alpha
 
-            (
-                token.dep_ == "ROOT"
                 and
-                token.pos_ in ["NOUN", "PROPN"]
-            )
 
-        ):
-
-            if token.is_alpha:
+                len(token.lemma_) > 2
+            ):
 
                 normalized = normalize_action(
                     token.lemma_.lower()
@@ -161,9 +199,11 @@ def decompose_claim(claim):
             "PROPN"
         ]:
 
-            nouns.append(
-                token.text.lower()
-            )
+            if len(token_text) > 2:
+
+                nouns.append(
+                    token_text
+                )
 
         # --------------------------------------
         # NUMBERS
@@ -172,7 +212,17 @@ def decompose_claim(claim):
         if token.like_num:
 
             numbers.append(
-                token.text.lower()
+                token_text
+            )
+
+        # --------------------------------------
+        # NEGATIONS
+        # --------------------------------------
+
+        if token_text in NEGATION_WORDS:
+
+            negations.append(
+                token_text
             )
 
     # ==========================================
@@ -181,19 +231,32 @@ def decompose_claim(claim):
 
     for chunk in doc.noun_chunks:
 
-        cleaned_chunk = chunk.text.lower()
-
-        noun_chunks.append(
-            cleaned_chunk
+        cleaned_chunk = (
+            chunk.text
+            .strip()
+            .lower()
         )
 
+        if (
+
+            len(cleaned_chunk) > 2
+
+            and
+
+            not cleaned_chunk.isnumeric()
+        ):
+
+            noun_chunks.append(
+                cleaned_chunk
+            )
+
     # ==========================================
-    # DATES
+    # DATE EXTRACTION
     # ==========================================
 
     date_patterns = re.findall(
 
-        r"\b\d{4}\b",
+        r"\b(?:19|20)\d{2}\b",
 
         claim
     )
@@ -201,19 +264,34 @@ def decompose_claim(claim):
     dates.extend(date_patterns)
 
     # ==========================================
-    # REMOVE DUPLICATES
+    # DEDUPLICATION
     # ==========================================
+
+    entities = list({
+
+        (
+            e["text"],
+            e["label"]
+        ): e
+
+        for e in entities
+
+    }.values())
 
     actions = list(set(actions))
 
     nouns = list(set(nouns))
 
-    numbers = list(set(numbers))
-
     noun_chunks = list(set(noun_chunks))
 
+    numbers = list(set(numbers))
+
+    dates = list(set(dates))
+
+    negations = list(set(negations))
+
     # ==========================================
-    # CLAIM TYPE
+    # CLAIM TYPE DETECTION
     # ==========================================
 
     claim_lower = claim.lower()
@@ -338,6 +416,8 @@ def decompose_claim(claim):
         "numbers": numbers,
 
         "dates": dates,
+
+        "negations": negations,
 
         "claim_type": claim_type
     }
