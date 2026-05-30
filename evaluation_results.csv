@@ -1,0 +1,16 @@
+claim,expected,predicted,confidence,top_evidence
+Nagaland University completed Startup Sprint on 22 April,ENTAILMENT,ENTAILMENT,0.9655099842891631,"[PDF] Think Big - Nagaland University, Kohima Campus"
+India won the ICC Cricket World Cup 2011,ENTAILMENT,NEUTRAL,0.84,"IND vs SL Cricket Scorecard, Final at Mumbai, April 02, 2011"
+The Eiffel Tower is located in Paris,ENTAILMENT,ENTAILMENT,0.8528232567075338,Eiffel Tower - Wikipedia
+OpenAI developed ChatGPT,ENTAILMENT,ENTAILMENT,0.8124385433344005,ChatGPT - Wikipedia
+The Earth revolves around the Sun,ENTAILMENT,NEUTRAL,0.47425418306882405,The Earth will be at its closest point to the sun this weekend - YouTube
+India won the FIFA World Cup 2022,CONTRADICTION,NEUTRAL,0.84,Celebrations in India     when Argentina     won the FIFA World Cup ...
+The capital of India is Mumbai,CONTRADICTION,ENTAILMENT,1.0,"Mumbai | History, Culture & Attractions - Britannica"
+ChatGPT was developed by Google,CONTRADICTION,NEUTRAL,0.8683908564717319,What is ChatGPT? Viral AI chatbot at heart of Microsoft-Google fight
+The Moon is larger than the Earth,CONTRADICTION,NEUTRAL,0.45426121237955186,The Moon now appears bigger in the window than ...
+World War II ended in 2050,CONTRADICTION,NEUTRAL,0.84,What If World War II Happened in 2050? Same conflict. Different ...
+NASA will establish a permanent city on Mars by 2035,NEUTRAL,NEUTRAL,0.72,"On March 24, 2026, NASA announced new initiatives to increase ..."
+Aliens have built a research base under Delhi,NEUTRAL,NEUTRAL,0.7643406077363488,"Just came across another research article on ""Aliens in Delhi"""
+A new continent will be discovered in the Pacific Ocean next year,NEUTRAL,NEUTRAL,0.506435835676945,GSA Today - Zealandia: Earth's Hidden Continent
+India will host the Olympic Games in 2040,NEUTRAL,NEUTRAL,0.64,"India among aspiring hosts for Olympics in 2036, 2040 and beyond ..."
+A previously unknown species of dragon currently lives in the Himalayas,NEUTRAL,NEUTRAL,0.5815135922312488,"In the High Himalayas, a Mysterious Animal That Has ... - The Debrief"
