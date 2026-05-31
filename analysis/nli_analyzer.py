@@ -204,20 +204,27 @@ def calibrate_nli_label(
     # WEAK CONTRADICTION FILTER
     # ==========================================
 
+    #if (
+
+      #  label == "CONTRADICTION"
+
+      #  and
+
+     #   alignment_score < 0.50
+
+    #):
+
+     #   label = "NEUTRAL"
+
+    #return label
     if (
-
         label == "CONTRADICTION"
-
-        and
-
-        alignment_score < 0.50
-
+        and 
+        confidence < 0.70
     ):
-
         label = "NEUTRAL"
-
+        
     return label
-
 
 # =====================================================
 # MAIN NLI ANALYSIS

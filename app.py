@@ -114,12 +114,13 @@ def verify_claim(claim):
 # GRADIO UI
 # =====================================================
 
-with gr.Blocks(title="AI Fake News Verification System") as demo:
+with gr.Blocks(
+        title="AI Based Fake News Detections and Fact Checking System") as demo:
     gr.Markdown(
         """
-        # AI Fake News Verification System
-        Advanced Retrieval-Augmented Semantic Fake News Detection & Verification
+        # AI Based Fake News Detection and Fact Checking System
         """
+
     )
 
     with gr.Row():
@@ -130,8 +131,8 @@ with gr.Blocks(title="AI Fake News Verification System") as demo:
         )
 
     with gr.Row():
-        verify_button = gr.Button("Chalo")
-        clear_button = gr.Button("Hatai Diwi")
+        verify_button = gr.Button("Verify")
+        clear_button = gr.Button("Clear")
 
     with gr.Tab("Final Verdict"):
         verdict_output = gr.Markdown()
@@ -183,6 +184,12 @@ with gr.Blocks(title="AI Fake News Verification System") as demo:
 # =====================================================
 # LAUNCH
 # =====================================================
-
 if __name__ == "__main__":
-    demo.launch(share=True)
+    demo.launch(
+        share=True,
+        css="""
+        footer {
+            display: none !important;
+        }
+        """
+    )

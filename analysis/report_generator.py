@@ -1,4 +1,3 @@
-
 # =====================================================
 # REPORT GENERATOR
 # =====================================================
@@ -22,6 +21,27 @@ def build_report(state):
     )
 
     lines.append("\nTop Evidence:\n")
+
+    # =================================================
+    # QWEN JUDGE (Fixed Indentation & List Integration)
+    # =================================================
+
+    lines.append("\n")
+    lines.append("============================\n")
+    lines.append("QWEN JUDGE\n")
+    lines.append("============================\n")
+
+    if hasattr(state, "qwen_judge"):
+
+        lines.append(
+            f"Verdict: "
+            f"{state.qwen_judge.get('verdict', 'UNKNOWN')}\n"
+        )
+
+        lines.append(
+            f"Reason: "
+            f"{state.qwen_judge.get('reason', '')}\n"
+        )
 
     # =================================================
     # EVIDENCE

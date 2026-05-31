@@ -65,12 +65,6 @@ You are a fact-checking judge.
 Claim:
 {claim}
 
-System Verdict:
-{system_verdict}
-
-System Confidence:
-{confidence}
-
 Evidence:
 {evidence_text}
 
@@ -82,13 +76,41 @@ Your task:
    REFUTED
    NOT_ENOUGH_INFORMATION
 
-3. Return ONLY valid JSON.
+Rules:
+
+- Use only the evidence provided.
+- Do not infer missing facts.
+- Do not assume that:
+  - organizing an event means completing it
+  - announcing something means it happened
+  - planning something means it occurred
+  - discussing something means it was achieved
+- If any important part of the claim is not explicitly stated in the evidence,
+  return NOT_ENOUGH_INFORMATION.
+- Focus on what the evidence directly reports.
+
+After deciding the verdict, write a factual explanation.
+
+Explanation requirements:
+
+- Use only the primary evidence.
+- Do not discuss other evidence.
+- Do not repeat the verdict label.
+- Do not start with "Therefore", "Thus", or "In conclusion".
+- Describe the facts reported in the evidence.
+- Summarize the article's key details.
+- Do not add facts not present in the evidence.
+- Do not speculate.
+- Do not write a conclusion paragraph.
+- Maximum 200 words.
+
+Return ONLY valid JSON.
 
 Example:
 
 {{
     "verdict": "SUPPORTED",
-    "reason": "Short explanation"
+    "reason": "Factual summary of the evidence."
 }}
 """
 
