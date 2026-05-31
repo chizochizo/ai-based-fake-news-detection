@@ -1,10 +1,11 @@
 import re
 import subprocess
-
+from understanding.claim_normalizer import normalize_claim
 
 # =====================================================
 # HELPERS
 # =====================================================
+
 
 def clean_ansi(text):
     """Removes ANSI escape codes (colors, cursor movements) from text."""
@@ -24,13 +25,19 @@ def run_qwen_judge(
     confidence,
     evidence_list
 ):
+    normalized_claim = normalize_claim(claim)
+    if not evidence_list:
+        return {
+            "verdict": "UNKNOWN",
+            "reason": "No evidence provided"
+        }
     try:
         # ==========================================
         # BUILD EVIDENCE SUMMARY
         # ==========================================
         evidence_text = ""
 
-        for i, evidence in enumerate(evidence_list[:5], start=1):
+        for i, evidence in enumerate(evidence_list[:1], start=1):
             title = getattr(
                 evidence,
                 "title",
@@ -43,17 +50,11 @@ def run_qwen_judge(
                 ""
             )
 
-            label = getattr(
-                evidence,
-                "nli_label",
-                "UNKNOWN"
-            )
-
             evidence_text += (
                 f"\nEvidence {i}\n"
                 f"Title: {title}\n"
-                f"Label: {label}\n"
-                f"Content: {content[:500]}\n"
+                f"Content: {content[:700]}\n"
+
             )
 
         # ==========================================
@@ -63,9 +64,15 @@ def run_qwen_judge(
 You are a fact-checking judge.
 
 Claim:
-{claim}
+{normalized_claim}
 
-Evidence:
+System Verdict:
+{system_verdict}
+
+System Confidence:
+{confidence}
+
+Primary Evidence:
 {evidence_text}
 
 Your task:
@@ -94,7 +101,6 @@ After deciding the verdict, write a factual explanation.
 Explanation requirements:
 
 - Use only the primary evidence.
-- Do not discuss other evidence.
 - Do not repeat the verdict label.
 - Do not start with "Therefore", "Thus", or "In conclusion".
 - Describe the facts reported in the evidence.
@@ -102,7 +108,7 @@ Explanation requirements:
 - Do not add facts not present in the evidence.
 - Do not speculate.
 - Do not write a conclusion paragraph.
-- Maximum 200 words.
+- Maximum 300 words.
 
 Return ONLY valid JSON.
 

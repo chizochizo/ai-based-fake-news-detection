@@ -1,98 +1,19 @@
-claim,label
-The Earth revolves around the Sun,SUPPORT
-Water boils at 100 degrees Celsius at sea level,SUPPORT
-India gained independence in 1947,SUPPORT
-The Great Wall of China is visible from the Moon with the naked eye,REFUTE
-Humans have walked on the Moon,SUPPORT
-The capital of France is Paris,SUPPORT
-The capital of Australia is Sydney,REFUTE
-Barack Obama served as President of the United States,SUPPORT
-The Pacific Ocean is larger than the Atlantic Ocean,SUPPORT
-Mount Everest is the tallest mountain above sea level,SUPPORT
-The Eiffel Tower is located in Berlin,REFUTE
-The speed of light is faster than the speed of sound,SUPPORT
-Sharks are mammals,REFUTE
-The human heart has four chambers,SUPPORT
-The chemical symbol for gold is Au,SUPPORT
-The chemical symbol for silver is Ag,SUPPORT
-Bats are blind,REFUTE
-The Amazon River is the longest river in the world,NEI
-The Moon is a planet,REFUTE
-The Sun is a star,SUPPORT
-Nagaland University organized Startup Sprint 2025 on April 22, 2025,NEI
-The FIFA World Cup is held every four years,SUPPORT
-The Olympic Games occur every two years,REFUTE
-Penguins can fly,REFUTE
-The Taj Mahal is located in Agra,SUPPORT
-The Taj Mahal is located in Mumbai,REFUTE
-Mars is known as the Red Planet,SUPPORT
-Venus is the closest planet to the Sun,REFUTE
-Jupiter is the largest planet in the Solar System,SUPPORT
-Saturn is the only planet with rings,REFUTE
-The Indian Constitution came into effect in 1950,SUPPORT
-The Indian Constitution came into effect in 1960,REFUTE
-Python is a programming language,SUPPORT
-Python was created by Guido van Rossum,SUPPORT
-Java was developed before C language,REFUTE
-Linux is an operating system,SUPPORT
-Microsoft developed Windows,SUPPORT
-Apple created Android,REFUTE
-The first World War ended in 1918,SUPPORT
-The second World War ended in 1945,SUPPORT
-World War II ended in 1939,REFUTE
-Abraham Lincoln was the first US President,REFUTE
-George Washington was the first US President,SUPPORT
-The human body has 206 bones,SUPPORT
-The human body has 500 bones,REFUTE
-COVID-19 is caused by a virus,SUPPORT
-COVID-19 is caused by bacteria,REFUTE
-The Nile River flows through Egypt,SUPPORT
-The Sahara is the largest hot desert on Earth,SUPPORT
-Antarctica is the driest continent on Earth,SUPPORT
-The Sun rises in the west,REFUTE
-The Sun rises in the east,SUPPORT
-Fish can breathe underwater using gills,SUPPORT
-Whales are fish,REFUTE
-The Statue of Liberty is in New York,SUPPORT
-The Statue of Liberty is in California,REFUTE
-The Earth has two natural moons,REFUTE
-The Earth has one natural moon,SUPPORT
-Albert Einstein developed the theory of relativity,SUPPORT
-Albert Einstein invented the telephone,REFUTE
-Alexander Graham Bell invented the telephone,SUPPORT
-The square root of 64 is 8,SUPPORT
-The square root of 64 is 6,REFUTE
-Lightning never strikes the same place twice,REFUTE
-The boiling point of water decreases at higher altitudes,SUPPORT
-The Great Pyramid of Giza is in Egypt,SUPPORT
-The Great Pyramid of Giza is in Greece,REFUTE
-The speed of sound in air is faster than light,REFUTE
-Mercury is the closest planet to the Sun,SUPPORT
-The Atlantic Ocean is larger than the Pacific Ocean,REFUTE
-The Indian Ocean is the largest ocean on Earth,REFUTE
-A leap year has 366 days,SUPPORT
-A leap year has 365 days,REFUTE
-The liver is the largest internal organ in the human body,SUPPORT
-The brain is the largest internal organ in the human body,REFUTE
-The United Nations was founded in 1945,SUPPORT
-The United Nations was founded in 1955,REFUTE
-The currency of Japan is the Yen,SUPPORT
-The currency of Japan is the Won,REFUTE
-The currency of South Korea is the Won,SUPPORT
-The capital of Japan is Tokyo,SUPPORT
-The capital of Japan is Osaka,REFUTE
-The capital of India is New Delhi,SUPPORT
-The capital of India is Mumbai,REFUTE
-A byte consists of 8 bits,SUPPORT
-A byte consists of 16 bits,REFUTE
-HTML is a programming language,REFUTE
-HTML is a markup language,SUPPORT
-The human body contains DNA,SUPPORT
-Plants perform photosynthesis,SUPPORT
-Plants obtain energy through photosynthesis,SUPPORT
-Dogs are reptiles,REFUTE
-Cats are mammals,SUPPORT
-Spiders have eight legs,SUPPORT
-Spiders have six legs,REFUTE
-The Earth is approximately spherical,SUPPORT
-The Earth is flat,REFUTE
+claim,expected
+Nagaland became the 16th state of India in 1963,ENTAILMENT
+Nagaland University is a Central University,ENTAILMENT
+Hornbill Festival is celebrated every year in Nagaland,ENTAILMENT
+The capital of Nagaland is Kohima,ENTAILMENT
+Nagaland shares an international border with Myanmar,ENTAILMENT
+Kohima is the capital city of Nagaland,ENTAILMENT
+Nagaland became a state in 1950,CONTRADICTION
+The capital of Nagaland is Dimapur,CONTRADICTION
+Nagaland University is located only in Delhi,CONTRADICTION
+Nagaland shares an international border with Bangladesh,CONTRADICTION
+Hornbill Festival is celebrated in Mumbai every year,CONTRADICTION
+Nagaland became the 25th state of India,CONTRADICTION
+Nagaland University completed a Startup Sprint on 22 April 2025,NEUTRAL
+Nagaland University launched an AI Research Center in January 2025,NEUTRAL
+The Government of Nagaland will build an international airport in Mon district by 2028,NEUTRAL
+Nagaland University signed a partnership with NASA in 2025,NEUTRAL
+The Hornbill Festival attracted exactly 1 million visitors in 2025,NEUTRAL
+Nagaland will host the Asian Games in 2030,NEUTRAL
