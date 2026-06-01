@@ -3,230 +3,176 @@ from datetime import datetime
 
 CURRENT_YEAR = datetime.now().year
 
-# =====================================================
-# STOPWORDS
-# =====================================================
-STOPWORDS = {
-    "the", "a", "an", "is", "was", "were", "be", "been", "being",
-    "has", "have", "had", "do", "does", "did", "of", "in", "on",
-    "at", "for", "to", "from", "by", "with", "and", "or", "but"
-}
 
 # =====================================================
-# ABBREVIATIONS
+# CLEANER
 # =====================================================
-ABBREVIATIONS = {
-    "nagaland university": "NU",
-    "indian institute of technology": "IIT",
-    "all india institute of medical sciences": "AIIMS"
-}
 
-
-# =====================================================
-# TEXT CLEANER
-# =====================================================
 def clean_text(text):
-    text = text.lower().strip()
+    text = text.strip()
     text = re.sub(r"\s+", " ", text)
     return text
 
 
 # =====================================================
-# QUERY SCORING
-# =====================================================
-def score_query(query, claim):
-    query_words = set(clean_text(query).split())
-    claim_words = set(clean_text(claim).split())
-
-    overlap = len(query_words & claim_words)
-    score = overlap
-
-    if len(query_words) >= 4:
-        score += 2
-
-    if len(query_words) >= 6:
-        score += 2
-
-    if len(query_words) < 3:
-        score -= 5
-
-    return score
-
-
-# =====================================================
 # QUERY BUILDER
 # =====================================================
+
 def build_search_queries(claim, decomposition):
-    queries = set()
+
     claim = clean_text(claim)
 
-    # ==========================================
-    # ORIGINAL CLAIM
-    # ==========================================
-    queries.add(claim)
+    queries = []
 
     # ==========================================
-    # ENTITY EXTRACTION
+    # 1. ORIGINAL CLAIM
     # ==========================================
-    entity_names = [
+
+    queries.append(claim)
+
+    # ==========================================
+    # 2. CLAIM + YEAR
+    # ==========================================
+
+    queries.append(
+        f"{claim} {CURRENT_YEAR}"
+    )
+
+    # ==========================================
+    # 3. ENTITY EXTRACTION
+    # ==========================================
+
+    entities = [
+
         clean_text(ent["text"])
-        for ent in decomposition.get("entities", [])
+
+        for ent in decomposition.get(
+            "entities",
+            []
+        )
     ]
 
+    entity_string = " ".join(
+        entities
+    )
+
     # ==========================================
-    # NOUN CHUNKS
+    # 4. RELATION EXTRACTION
     # ==========================================
-    noun_chunks = [
-        clean_text(chunk)
-        for chunk in decomposition.get("noun_chunks", [])
+
+    relations = []
+
+    lower_claim = claim.lower()
+
+    relation_patterns = [
+
+        "capital of",
+
+        "chief minister of",
+
+        "president of",
+
+        "founder of",
+
+        "located in",
+
+        "part of",
+
+        "member of",
+
+        "headquarters of",
+
+        "representing",
+
+        "winner of",
+
+        "startup sprint",
+
+        "startup program",
+
+        "startup programme",
+
+        "completed startup sprint"
     ]
 
-    # ==========================================
-    # ACTIONS
-    # ==========================================
-    actions = decomposition.get("actions", [])
+    for pattern in relation_patterns:
+
+        if pattern in lower_claim:
+
+            relations.append(
+                pattern
+            )
 
     # ==========================================
-    # ENTITY QUERIES
+    # 5. RELATIONAL QUERY
     # ==========================================
-    if entity_names:
-        # Exact quoted
-        quoted_entities = " ".join([f'"{e}"' for e in entity_names])
-        queries.add(quoted_entities)
 
-        # Relaxed entity query
-        relaxed_entities = " ".join(entity_names)
-        queries.add(relaxed_entities)
+    for relation in relations:
 
-    # ==========================================
-    # NOUN CHUNK QUERIES
-    # ==========================================
-    for chunk in noun_chunks:
-        if len(chunk.split()) >= 2:
-            # Exact noun chunk
-            queries.add(f'"{chunk}"')
-            # Relaxed noun chunk
-            queries.add(chunk)
+        if entities:
+
+            queries.append(
+                f'{entity_string} "{relation}"'
+            )
+
+            queries.append(
+                f'"{relation}" {entity_string}'
+            )
 
     # ==========================================
-    # ENTITY + ACTION QUERY
+    # 6. QUOTED CLAIM FRAGMENT
     # ==========================================
-    if entity_names and actions:
-        event_query = f'{" ".join(entity_names)} {" ".join(actions)}'
-        queries.add(event_query)
+
+    if len(claim.split()) >= 4:
+
+        queries.append(
+            f'"{claim}"'
+        )
 
     # ==========================================
-    # ENTITY + NOUN MIX
+    # 7. OFFICIAL SOURCE QUERY
     # ==========================================
-    if entity_names and noun_chunks:
-        for entity in entity_names[:2]:
-            for chunk in noun_chunks[:3]:
-                mixed_query = f"{entity} {chunk}"
-                queries.add(mixed_query)
+
+    if entities:
+
+        queries.append(
+            f'site:gov {entity_string}'
+        )
 
     # ==========================================
-    # COMPACT QUERY
+    # 8. FACT VERIFICATION QUERY
     # ==========================================
-    compact_words = [
-        word for word in claim.split()
-        if word.lower() not in STOPWORDS
-    ]
-    compact_query = " ".join(compact_words)
-    if compact_query:
-        queries.add(compact_query)
+
+    if entities and relations:
+
+        for relation in relations:
+
+            queries.append(
+                f'"{relation}" {entity_string} {CURRENT_YEAR}'
+            )
 
     # ==========================================
-    # DATE VARIANTS
+    # DEDUPLICATE
     # ==========================================
-    queries.add(f"{claim} {CURRENT_YEAR}")
 
-    # ==========================================
-    # ABBREVIATION VARIANTS
-    # ==========================================
-    for full_name, short_name in ABBREVIATIONS.items():
-        if full_name in claim:
-            abbreviated = claim.replace(full_name, short_name)
-            queries.add(abbreviated)
-
-    # ==========================================
-    # EDUCATIONAL / OFFICIAL SOURCES
-    # ==========================================
-    if entity_names:
-        official_query = f'site:edu {" ".join(entity_names)}'
-        queries.add(official_query)
-
-        official_query_2 = f'site:ac.in {" ".join(entity_names)}'
-        queries.add(official_query_2)
-
-    # ==========================================
-    # SEMANTIC EVENT VARIANTS
-    # ==========================================
-    EVENT_VARIANTS = {
-        "parting": ["farewell", "sendoff"],
-        "programme": ["event", "ceremony"],
-        "social": ["gathering", "celebration"]
-    }
-
-    for original, variants in EVENT_VARIANTS.items():
-        if original in claim:
-            for variant in variants:
-                semantic_variant = claim.replace(original, variant)
-                queries.add(semantic_variant)
-
-    # ---
-    # NEWS style queries
-    # --
-    if entity_names:
-        for entity in entity_names:
-            queries.add(f"{entity} press release")
-            queries.add(f"{entity} official statement")
-            queries.add(f"{entity} announcement")
-            queries.add(f"{entity} event")
-
-    # ---
-    # TEMPORAL queries
-    # ---
-    queries.add(f"{claim} this week")
-    queries.add(f"{claim} this month")
-    queries.add(f"{claim} this year")
-
-    # ==========================================
-    # CLEANUP
-    # ==========================================
-    clean_queries = []
     seen = set()
 
-    for query in queries:
-        query = clean_text(query)
-        if len(query) > 3 and query not in seen:
-            clean_queries.append(query)
-            seen.add(query)
+    final_queries = []
 
-    # ==========================================
-    # FILTER SHORT QUERIES
-    # ==========================================
-    filtered_queries = []
-    for query in clean_queries:
-        if len(query.split()) < 3:
-            continue
-        filtered_queries.append(query)
+    for q in queries:
 
-    # ==========================================
-    # SCORE QUERIES
-    # ==========================================
-    scored_queries = []
-    for query in filtered_queries:
-        score = score_query(query, claim)
-        scored_queries.append((score, query))
+        q = clean_text(q)
 
-    scored_queries.sort(key=lambda x: x[0], reverse=True)
+        if q not in seen:
 
-    final_queries = [
-        query for score, query in scored_queries[:10]
-    ]
+            seen.add(q)
+
+            final_queries.append(q)
 
     print("\n[TOP QUERIES]")
-    for q in final_queries[:5]:
+
+    for q in final_queries:
+
         print(q)
 
     return final_queries

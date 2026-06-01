@@ -4,6 +4,7 @@ from retrieval.cross_encoder_reranker import rerank_evidence
 from retrieval.web_search import search_web
 from retrieval.bm25_retriever import bm25_rank_evidence
 from analysis.nli_analyzer import analyze_claim_evidence
+from retrieval.wiki_retriever import retrieve_wikipedia
 
 # =====================================================
 # CONFIGURATION
@@ -11,11 +12,12 @@ from analysis.nli_analyzer import analyze_claim_evidence
 
 MIN_EVIDENCE_COUNT = 5
 MIN_STRONG_MATCHES = 3
-MIN_RERANK_SCORE = 0.60
+MIN_RERANK_SCORE = 3.0
 VERY_STRONG_SCORE = 0.80
-MAX_TOTAL_EVIDENCE = 15
-MAX_RESULTS_PER_QUERY = 5
-MAX_QUERIES_PER_ENGINE = 2
+MAX_TOTAL_EVIDENCE = 40
+MIN_STRONG_RERANK_SCORE = 5.0
+MAX_RESULTS_PER_QUERY = 3
+MAX_QUERIES_PER_ENGINE = 3
 MAX_EMPTY_ENGINES = 2
 MIN_ENGINE_YIELD = 2
 SATURATION_LIMIT = 2
@@ -29,7 +31,7 @@ def enough_evidence(evidence):
     if len(evidence) >= MIN_EVIDENCE_COUNT:
         strong_matches = [
             item for item in evidence
-            if getattr(item, "reranker_score", 0) >= MIN_RERANK_SCORE
+            if getattr(item, "reranker_score", 0) >= MIN_STRONG_RERANK_SCORE
         ]
         if len(strong_matches) >= MIN_STRONG_MATCHES:
             return True
@@ -62,7 +64,25 @@ def run_engine(engine, query):
 
 def prioritize_queries(queries):
 
-    return queries[:MAX_QUERIES_PER_ENGINE]
+    scored = []
+
+    for q in queries:
+
+        score = len(q.split())
+
+        scored.append(
+            (score, q)
+        )
+
+    scored.sort(
+        reverse=True
+    )
+
+    return [
+        q
+        for score, q
+        in scored[:MAX_QUERIES_PER_ENGINE]
+    ]
 
 
 # =====================================================
@@ -130,7 +150,7 @@ def determine_search_engines(claim_type):
     elif claim_type == "event":
         return ["serper", "tavily", "duckduckgo"]
     elif claim_type == "regional":
-        return ["rss", "google_cse", "youtube"]
+        return ["serper", "duckduckgo", "youtube"]
 
     return ["tavily", "serper", "duckduckgo"]
 
@@ -139,8 +159,7 @@ def determine_search_engines(claim_type):
 # MAIN RETRIEVAL PIPELINE
 # =====================================================
 
-
-def retrieve_evidence(claim, queries):
+def retrieve_evidence(claim, queries, decomposition=None):
     # ==========================================
     # CLAIM CLASSIFICATION
     # ==========================================
@@ -183,6 +202,27 @@ def retrieve_evidence(claim, queries):
         print(q)
 
     all_evidence = []
+
+    # ==========================================
+    # WIKIPEDIA RETRIEVAL
+    # ==========================================
+
+    wiki_results = retrieve_wikipedia(
+        claim,
+        decomposition
+    )
+
+    all_evidence.extend(
+        wiki_results
+    )
+    all_evidence = deduplicate_evidence(
+        all_evidence
+    )
+
+    print(
+        f"\n[WIKIPEDIA] {len(wiki_results)} results"
+    )
+
     used_engines = []
     stage_logs = []
     empty_engine_count = 0
@@ -206,6 +246,13 @@ def retrieve_evidence(claim, queries):
         # DEDUPLICATION
         # --------------------------------------
         engine_results = deduplicate_evidence(engine_results)
+        print("\n[ENGINE RESULTS]")
+
+        for e in engine_results[:10]:
+
+            print(
+                e.title
+            )
 
         # --------------------------------------
         # TRACK SUCCESSFUL ENGINE
@@ -240,16 +287,16 @@ def retrieve_evidence(claim, queries):
         # -----
         # BM25 ranking
         # -----
-        bm25_ranked = bm25_rank_evidence(claim, all_evidence, top_k=8)
+        bm25_ranked = bm25_rank_evidence(claim, all_evidence, top_k=20)
 
         # ----
         # DENSE rerank
         # ----
         reranked_preview = quick_rerank_check(claim, bm25_ranked)
 
-        if has_very_strong_match(reranked_preview):
-            all_evidence = reranked_preview
-            break
+        # if has_very_strong_match(reranked_preview):
+        #   all_evidence = reranked_preview
+        #  break
 
         # --------------------------------------
         # STRONG MATCHES
@@ -279,6 +326,14 @@ def retrieve_evidence(claim, queries):
             "saturation": saturation_counter
         })
 
+        print("\n[EARLY STOP CHECK]")
+
+        for e in reranked_preview:
+            print(
+                e.title[:60],
+                getattr(e, "reranker_score", 0)
+            )
+
         # --------------------------------------
         # EARLY STOP: ENOUGH STRONG EVIDENCE
         # --------------------------------------
@@ -302,7 +357,7 @@ def retrieve_evidence(claim, queries):
     # FINAL RERANK
     # ==========================================
     if all_evidence:
-        bm25_final = bm25_rank_evidence(claim, all_evidence, top_k=5)
+        bm25_final = bm25_rank_evidence(claim, all_evidence, top_k=20)
         final_ranked = rerank_evidence(claim, bm25_final)
         final_ranked = final_ranked[:5]
         print("\n[NLI EVIDENCE COUNT]", len(final_ranked))

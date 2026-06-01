@@ -1,19 +1,19 @@
 claim,expected,predicted,confidence,top_evidence
-Nagaland became the 16th state of India in 1963,ENTAILMENT,NEUTRAL,0.25041280949125755,World No Tobacco Day observed across Nagaland
-Nagaland University is a Central University,ENTAILMENT,ENTAILMENT,0.9866839534388092,Nagaland University - Wikipedia
-Hornbill Festival is celebrated every year in Nagaland,ENTAILMENT,ENTAILMENT,0.7642702218153953,[Solved] Which festival celebrated in Nagaland every year in the mont
-The capital of Nagaland is Kohima,ENTAILMENT,NEUTRAL,0.14993306835679848,World No Tobacco Day observed across Nagaland
-Nagaland shares an international border with Myanmar,ENTAILMENT,NEUTRAL,0.5750453119158292,Nagaland Tourism Minister to receive  Global Blue Tourism Innovation Award
-Kohima is the capital city of Nagaland,ENTAILMENT,NEUTRAL,0.21095362502500842,World No Tobacco Day observed across Nagaland
-Nagaland became a state in 1950,CONTRADICTION,NEUTRAL,0.051612010706699685,ENPO accuses Nagaland Government of 'U-turn' on FNTA agreement
-The capital of Nagaland is Dimapur,CONTRADICTION,NEUTRAL,0.2724353935131736,World No Tobacco Day observed across Nagaland
-Nagaland University is located only in Delhi,CONTRADICTION,CONTRADICTION,0.6363474414735673,Nagaland University
-Nagaland shares an international border with Bangladesh,CONTRADICTION,NEUTRAL,0.2742679699004682,"Tripura cracks down on illegal infiltration; over 3,700 foreign nationals arrested since 2022"
-Hornbill Festival is celebrated in Mumbai every year,CONTRADICTION,CONTRADICTION,0.8484435654820457,[Solved] The Hornbill Festival is celebrated in which state? - Testbook
-Nagaland became the 25th state of India,CONTRADICTION,NEUTRAL,0.3623165071544632,World No Tobacco Day observed across Nagaland
-Nagaland University completed a Startup Sprint on 22 April 2025,NEUTRAL,NEUTRAL,0.6606097162355267,"[PDF] Think Big - Nagaland University, Kohima Campus"
-Nagaland University launched an AI Research Center in January 2025,NEUTRAL,NEUTRAL,1.0,Nagaland University takes pride in being recognised as ... - Instagram
-The Government of Nagaland will build an international airport in Mon district by 2028,NEUTRAL,NEUTRAL,0.3209798418897998,Nagaki Rüzaphema International Airport - Wikipedia
-Nagaland University signed a partnership with NASA in 2025,NEUTRAL,NEUTRAL,0.9537281665348563,Nagaland University - Facebook
-The Hornbill Festival attracted exactly 1 million visitors in 2025,NEUTRAL,NEUTRAL,0.7252940358741301,Hornbill festival 2025 records 1.38 lakh visitors in first week; footfall ...
-Nagaland will host the Asian Games in 2030,NEUTRAL,NEUTRAL,0.4665407296130203,Meghalaya to host 39th National Games 2027 as CM Sangma signs Host State agreement
+Nagaland became the 16th state of India in 1963,ENTAILMENT,ENTAILMENT,1.0,"Telangana Guv honours leaders, citizens for their contribution to ..."
+Nagaland University is a Central University,ENTAILMENT,ENTAILMENT,0.9902634512471206,Nagaland University - Wikipedia
+Hornbill Festival is celebrated every year in Nagaland,ENTAILMENT,ENTAILMENT,1.0,[Solved] 'Hornbill festival' is celebrated in which of th - Testbook
+The capital of Nagaland is Kohima,ENTAILMENT,ENTAILMENT,1.0,Kohima - Wikipedia
+Nagaland shares an international border with Myanmar,ENTAILMENT,ENTAILMENT,1.0,With which country does Nagaland share its international border?
+Kohima is the capital city of Nagaland,ENTAILMENT,ENTAILMENT,1.0,Kohima - Wikipedia
+Nagaland became a state in 1950,CONTRADICTION,CONTRADICTION,0.4019123856843917,History | Nagaland Legislative Assembly
+The capital of Nagaland is Dimapur,CONTRADICTION,ENTAILMENT,0.8045249646487672,"History | District Dimapur, Government Of Nagaland | India"
+Nagaland University is located only in Delhi,CONTRADICTION,CONTRADICTION,0.6889192038906244,Nagaland University - Wikipedia
+Nagaland shares an international border with Bangladesh,CONTRADICTION,NEUTRAL,0.5934576552889398,[Solved] Nagaland shares the international border with - Testbook
+Hornbill Festival is celebrated in Mumbai every year,CONTRADICTION,NEUTRAL,0.9498468617717764,Hornbill Festival 2019 kick-starts amid fanfare | Global Prime
+Nagaland became the 25th state of India,CONTRADICTION,NEUTRAL,0.7411149909592945,Nagaland Legislative Assembly - Wikipedia
+Nagaland University completed a Startup Sprint on 22 April 2025,NEUTRAL,NEUTRAL,1.0,"[PDF] Think Big - Nagaland University, Kohima Campus"
+Nagaland University launched an AI Research Center in January 2025,NEUTRAL,NEUTRAL,1.0,What Will This New AI Center in Nagaland Mean for Over 200 ...
+The Government of Nagaland will build an international airport in Mon district by 2028,NEUTRAL,NEUTRAL,0.540712396421422,List of airports in Nagaland - Wikipedia
+Nagaland University signed a partnership with NASA in 2025,NEUTRAL,NEUTRAL,1.0,Nagaland University signs MoU with Research and Information ...
+The Hornbill Festival attracted exactly 1 million visitors in 2025,NEUTRAL,NEUTRAL,1.0,Hornbill Festival 2025 draws over 2.14 lakh visitors
+Nagaland will host the Asian Games in 2030,NEUTRAL,CONTRADICTION,1.0,2026 Asian Games - Wikipedia

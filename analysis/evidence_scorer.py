@@ -220,31 +220,31 @@ def compute_evidence_score(
 
     combined = (
 
-        rerank_score * 0.30
+        rerank_score * 0.40
 
         +
 
-        nli_score * 0.20
+        nli_score * 0.30
 
         +
 
-        alignment * 3.0
+        alignment * 5.0
 
         +
 
-        fact_score * 1.5
+        fact_score * 3.0
 
         +
 
-        source_score
+        source_score * 0.5
 
         +
 
-        provenance_score
+        provenance_score * 0.5
 
         +
 
-        temporal_score
+        temporal_score * 0.25
 
         +
 

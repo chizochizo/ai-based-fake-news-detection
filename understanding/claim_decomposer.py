@@ -5,52 +5,97 @@ nlp = spacy.load(
     "en_core_web_sm"
 )
 
-# ==========================================
-# BAD ENTITY TERMS
-# ==========================================
-
 BAD_ENTITY_TERMS = {
-
     "conduct",
-    "conducted",
-
     "host",
+    "organize",
+    "hold",
+    "run",
+    "conducted",
+    "conducting",
+
     "hosts",
     "hosted",
     "hosting",
 
-    "organize",
     "organized",
     "organised",
+    "organizing",
+    "organising",
 
-    "hold",
     "holds",
-    "held"
+    "held",
+    "holding",
+
+    "runs",
+    "running",
+    "ran",
+
+    "event",
+    "events",
+
+    "activity",
+    "activities",
+
+    "session",
+    "sessions",
+
+    "meeting",
+    "meetings",
+
+    "function",
+    "functions"
 }
 
-# ==========================================
-# ACTION NORMALIZATION
-# ==========================================
-
 ACTION_NORMALIZATION = {
+    "host": "conduct",
+    "conduct": "conduct",
+    "organize": "conduct",
+    "hold": "conduct",
+    "run": "conduct",
 
-    "hosts": "conduct",
-    "hosted": "conduct",
-    "hosting": "conduct",
+    "launch": "launch",
 
-    "conducted": "conduct",
+    "announce": "announce",
 
-    "organized": "conduct",
-    "organised": "conduct",
+    "report": "report",
 
-    "holds": "conduct",
-    "held": "conduct",
+    "claim": "report",
 
-    "launched": "launch",
+    "say": "report",
 
-    "announced": "announce",
+    "state": "report",
 
-    "reported": "report"
+    "complete": "complete",
+
+    "win": "win",
+
+    "support": "support",
+
+    "elect": "elect",
+
+    "arrest": "arrest",
+
+    "kill": "kill",
+    "celebrate": "conduct",
+    "observe": "conduct",
+    "commemorate": "conduct",
+    "facilitate": "conduct",
+    "coordinate": "conduct",
+    "sponsor": "conduct",
+    "arrange": "conduct",
+    "manage": "conduct",
+    "execute": "conduct",
+    "mention": "report",
+    "disclose": "report",
+    "reveal": "report",
+    "confirm": "report",
+    "deny": "report",
+    "assert": "report",
+    "allege": "report",
+    "achieve": "complete",
+    "finish": "complete",
+    "graduate": "complete"
 }
 
 # ==========================================
@@ -58,7 +103,6 @@ ACTION_NORMALIZATION = {
 # ==========================================
 
 NEGATION_WORDS = {
-
     "not",
     "never",
     "no",
@@ -69,15 +113,48 @@ NEGATION_WORDS = {
     "n't"
 }
 
+EVENT_NOUNS = {
+    "sprint", "conference", "workshop", "seminar",
+    "festival", "summit", "ceremony", "event",
+    "program", "programme", "competition",
+    "hackathon", "mission", "launch",
+    "election", "protest", "rally",
+    "earthquake", "flood", "cyclone", "landslide",
+    "accident", "crash", "explosion", "blast",
+    "attack", "riot", "murder", "arrest",
+    "outbreak", "award", "training",
+    "orientation",
+    "awareness",
+    "internship",
+    "fellowship",
+    "summit",
+    "bootcamp",
+    "sprint",
+    "webinar",
+    "symposium",
+    "lecture",
+    "dialogue",
+    "conclave",
+    "exhibition",
+    "expo",
+    "farewell",
+    "freshers",
+    "convocation",
+    "graduation"
+}
+
+DATE_CHUNK_PATTERN = re.compile(
+    r"^\d{1,2}\s+(january|february|march|april|may|june|july|august|september|october|november|december)$",
+    re.I
+)
 
 # ==========================================
 # ACTION NORMALIZATION
 # ==========================================
 
+
 def normalize_action(action):
-
     action = action.lower().strip()
-
     return ACTION_NORMALIZATION.get(
         action,
         action
@@ -89,23 +166,15 @@ def normalize_action(action):
 # ==========================================
 
 def clean_entity_text(text):
-
     text = text.strip().lower()
-
     tokens = text.split()
 
     filtered_tokens = [
-
         token
-
         for token in tokens
-
         if (
-
             token not in BAD_ENTITY_TERMS
-
             and
-
             len(token) > 1
         )
     ]
@@ -122,21 +191,16 @@ def clean_entity_text(text):
 # ==========================================
 
 def decompose_claim(claim):
-
     doc = nlp(claim)
 
     entities = []
-
     actions = []
-
     nouns = []
-
     noun_chunks = []
-
+    event_terms = []
+    event_phrases = []
     numbers = []
-
     dates = []
-
     negations = []
 
     # ==========================================
@@ -144,17 +208,13 @@ def decompose_claim(claim):
     # ==========================================
 
     for ent in doc.ents:
-
         cleaned_text = clean_entity_text(
             ent.text
         )
 
         if cleaned_text:
-
             entities.append({
-
                 "text": cleaned_text,
-
                 "label": ent.label_
             })
 
@@ -163,7 +223,6 @@ def decompose_claim(claim):
     # ==========================================
 
     for token in doc:
-
         token_text = token.text.lower()
 
         # --------------------------------------
@@ -171,20 +230,14 @@ def decompose_claim(claim):
         # --------------------------------------
 
         if token.pos_ == "VERB":
-
             if (
-
                 token.is_alpha
-
                 and
-
                 len(token.lemma_) > 2
             ):
-
                 normalized = normalize_action(
                     token.lemma_.lower()
                 )
-
                 actions.append(
                     normalized
                 )
@@ -194,23 +247,21 @@ def decompose_claim(claim):
         # --------------------------------------
 
         if token.pos_ in [
-
             "NOUN",
             "PROPN"
         ]:
-
             if len(token_text) > 2:
-
                 nouns.append(
                     token_text
                 )
+                if token_text in EVENT_NOUNS:
+                    event_terms.append(token_text)
 
         # --------------------------------------
         # NUMBERS
         # --------------------------------------
 
         if token.like_num:
-
             numbers.append(
                 token_text
             )
@@ -220,7 +271,6 @@ def decompose_claim(claim):
         # --------------------------------------
 
         if token_text in NEGATION_WORDS:
-
             negations.append(
                 token_text
             )
@@ -230,37 +280,36 @@ def decompose_claim(claim):
     # ==========================================
 
     for chunk in doc.noun_chunks:
-
         cleaned_chunk = (
             chunk.text
             .strip()
             .lower()
         )
 
+        if DATE_CHUNK_PATTERN.match(cleaned_chunk):
+            continue
+
         if (
-
             len(cleaned_chunk) > 2
-
             and
-
             not cleaned_chunk.isnumeric()
         ):
-
-            noun_chunks.append(
-                cleaned_chunk
-            )
+            noun_chunks.append(cleaned_chunk)
+            chunk_words = set(cleaned_chunk.split())
+            if chunk_words & EVENT_NOUNS:
+                event_phrases.append(cleaned_chunk)
+                event_phrases.append(
+                    cleaned_chunk
+                )
 
     # ==========================================
     # DATE EXTRACTION
     # ==========================================
 
     date_patterns = re.findall(
-
         r"\b(?:19|20)\d{2}\b",
-
         claim
     )
-
     dates.extend(date_patterns)
 
     # ==========================================
@@ -268,26 +317,20 @@ def decompose_claim(claim):
     # ==========================================
 
     entities = list({
-
         (
             e["text"],
             e["label"]
         ): e
-
         for e in entities
-
     }.values())
 
     actions = list(set(actions))
-
+    event_terms = list(set(event_terms))
+    event_phrases = list(set(event_phrases))
     nouns = list(set(nouns))
-
     noun_chunks = list(set(noun_chunks))
-
     numbers = list(set(numbers))
-
     dates = list(set(dates))
-
     negations = list(set(negations))
 
     # ==========================================
@@ -295,7 +338,6 @@ def decompose_claim(claim):
     # ==========================================
 
     claim_lower = claim.lower()
-
     claim_type = "general"
 
     # ------------------------------------------
@@ -303,7 +345,6 @@ def decompose_claim(claim):
     # ------------------------------------------
 
     if any(word in claim_lower for word in [
-
         "said",
         "announced",
         "reported",
@@ -311,9 +352,7 @@ def decompose_claim(claim):
         "claim",
         "stated",
         "according to"
-
     ]):
-
         claim_type = "statement"
 
     # ------------------------------------------
@@ -321,7 +360,6 @@ def decompose_claim(claim):
     # ------------------------------------------
 
     elif any(word in claim_lower for word in [
-
         "won",
         "hosted",
         "conducted",
@@ -331,17 +369,17 @@ def decompose_claim(claim):
         "organised",
         "performed",
         "celebrated"
-
     ]):
-
         claim_type = "event"
 
-    # ------------------------------------------
+    # EVENT CLAIM VIA EVENT TERMS
+
+    elif event_terms:
+        claim_type = "event"
+
     # NUMERIC CLAIM
-    # ------------------------------------------
 
     elif any(char.isdigit() for char in claim):
-
         claim_type = "numeric"
 
     # ------------------------------------------
@@ -349,7 +387,6 @@ def decompose_claim(claim):
     # ------------------------------------------
 
     elif any(word in claim_lower for word in [
-
         "better",
         "worse",
         "higher",
@@ -359,9 +396,7 @@ def decompose_claim(claim):
         "largest",
         "smallest",
         "biggest"
-
     ]):
-
         claim_type = "comparison"
 
     # ------------------------------------------
@@ -369,7 +404,6 @@ def decompose_claim(claim):
     # ------------------------------------------
 
     elif any(word in claim_lower for word in [
-
         "today",
         "yesterday",
         "tomorrow",
@@ -378,9 +412,7 @@ def decompose_claim(claim):
         "in 2024",
         "in 2025",
         "in 2026"
-
     ]):
-
         claim_type = "temporal"
 
     # ------------------------------------------
@@ -388,15 +420,12 @@ def decompose_claim(claim):
     # ------------------------------------------
 
     elif any(word in claim_lower for word in [
-
         "because",
         "due to",
         "caused",
         "resulted in",
         "led to"
-
     ]):
-
         claim_type = "causal"
 
     # ==========================================
@@ -404,20 +433,14 @@ def decompose_claim(claim):
     # ==========================================
 
     return {
-
         "entities": entities,
-
         "actions": actions,
-
         "nouns": nouns,
-
         "noun_chunks": noun_chunks,
-
         "numbers": numbers,
-
         "dates": dates,
-
         "negations": negations,
-
-        "claim_type": claim_type
+        "claim_type": claim_type,
+        "event_terms": event_terms,
+        "event_phrases": event_phrases,
     }

@@ -755,19 +755,23 @@ print(result)
 FILE: .\test_retrieval.py
 ================================================================================
 
+from understanding.claim_decomposer import decompose_claim
+from understanding.query_planner import build_search_queries
 from retrieval.hybrid_retriever import retrieve_evidence
 
-claim = "Nagaland University hosted Startup Sprint on 22 April"
+claim = "The capital of Nagaland is Kohima"
 
-queries = [
+decomp = decompose_claim(claim)
+
+queries = build_search_queries(
     claim,
-    "Nagaland University Startup Sprint",
-    "Startup Sprint Nagaland University April"
-]
+    decomp
+)
 
 result = retrieve_evidence(
     claim,
-    queries
+    queries,
+    decomp
 )
 
 print("\nENGINES USED:")
@@ -778,6 +782,12 @@ print(result["claim_type"])
 
 print("\nEVIDENCE COUNT:")
 print(len(result["evidence"]))
+
+print("\nTOP EVIDENCE:")
+for e in result["evidence"]:
+    print("\nTITLE:", e.title)
+    print("RERANK:", getattr(e, "reranker_score", None))
+    print("URL:", e.source_url)
 
 
 ================================================================================
@@ -885,6 +895,46 @@ for item in results:
 
 
 print("TOTAL:", len(results))
+
+
+================================================================================
+FILE: .\test_wiki_retriever.py
+================================================================================
+
+from retrieval.wiki_retriever import retrieve_wikipedia
+
+# ==========================================
+# TEST CLAIMS
+# ==========================================
+
+claims = [
+
+    "Nagaland University completed Startup Sprint on 22 April",
+
+    "India won the Cricket World Cup in 2011",
+
+    "OpenAI launched ChatGPT",
+
+    "Barack Obama was elected President of the United States"
+
+]
+
+for claim in claims:
+
+    print("\n" + "=" * 80)
+    print("CLAIM:", claim)
+
+    results = retrieve_wikipedia(claim)
+
+    print(f"\nRESULTS: {len(results)}")
+
+    for idx, evidence in enumerate(results, start=1):
+
+        print("\n--------------------------------")
+        print("RANK:", idx)
+        print("TITLE:", evidence.title)
+        print("URL:", evidence.source_url)
+        print("CONTENT:", evidence.content[:300])
 
 
 ================================================================================
@@ -1519,31 +1569,31 @@ def compute_evidence_score(
 
     combined = (
 
-        rerank_score * 0.30
+        rerank_score * 0.40
 
         +
 
-        nli_score * 0.20
+        nli_score * 0.30
 
         +
 
-        alignment * 3.0
+        alignment * 5.0
 
         +
 
-        fact_score * 1.5
+        fact_score * 3.0
 
         +
 
-        source_score
+        source_score * 0.5
 
         +
 
-        provenance_score
+        provenance_score * 0.5
 
         +
 
-        temporal_score
+        temporal_score * 0.25
 
         +
 
@@ -2755,13 +2805,11 @@ Rules:
 
 - Use only the evidence provided.
 - Do not infer missing facts.
-- Do not assume that:
-  - organizing an event means completing it
-  - announcing something means it happened
-  - planning something means it occurred
-  - discussing something means it was achieved
-- If any important part of the claim is not explicitly stated in the evidence,
-  return NOT_ENOUGH_INFORMATION.
+- Interpret common event-completion language naturally.
+- If evidence states an event was held, organized, conducted, or took place on a date,
+  that can support a claim that the event occurred on that date.
+- Minor wording differences are acceptable when the core event,
+  organization, and date clearly match.
 - Focus on what the evidence directly reports.
 
 After deciding the verdict, write a factual explanation.
@@ -3581,7 +3629,7 @@ def aggregate_verdicts(claim, evidence_list):
             print("CONFLICTS A:", conflicts_a)
             print("CONFLICTS B:", conflicts_b)
 
-            if opposite_labels or strong_conflict:
+            if opposite_labels and strong_conflict:
                 print("\n[CONTRADICTION PAIR FOUND]")
                 print("A:", evidence_a.title)
                 print("B:", evidence_b.title)
@@ -3849,78 +3897,6 @@ def aggregate_verdicts(claim, evidence_list):
 
 
 ================================================================================
-FILE: .\analysis\verdict_explainer.py
-================================================================================
-
-import ollama
-
-
-def generate_verdict_explanation(
-    claim,
-    verdict,
-    evidence_list
-):
-
-    try:
-
-        top_evidence = evidence_list[0]
-
-        evidence_text = f"""
-Title:
-{top_evidence.title}
-
-Content:
-{top_evidence.content[:300]}
-"""
-        prompt = f"""
-Claim: 
-{claim}
-
-Verdict:
-{verdict}
-
-Evidence:
-{evidence_text}
-
-Explain why this verdict was reached.
-
-Requirements:
-- Use only the primary evidence.
-- Do not discuss other evidence.
-- Do not repeat the verdict.
-- Do not start with "Therefore", "Thus", or "In conclusion".
-- Describe the facts reported in the evidence or summarize the key details from the article that support the verdict.
-- Do not write a conclusion paragraph.
-- Do not repeat yourself.
-- Max 200 words
-"""
-
-        response = ollama.chat(
-
-            model="qwen2.5-coder:3b",
-
-            options={
-                "temperature": 0.1
-            },
-
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-        )
-
-        return response["message"]["content"]
-
-    except Exception as e:
-
-        print("QWEN ERROR:", e)
-
-        return ""
-
-
-================================================================================
 FILE: .\analysis\wikidata_utils.py
 ================================================================================
 
@@ -4146,10 +4122,8 @@ FILE: .\orchestrator\pipeline_controller.py
 ================================================================================
 
 from types import SimpleNamespace
-from analysis.qwen_judge import run_qwen_judge
 from analysis.report_generator import build_report
 from analysis.verdict_aggregator import aggregate_verdicts
-from analysis.verdict_explainer import generate_verdict_explanation
 from retrieval.hybrid_retriever import retrieve_evidence
 from understanding.claim_decomposer import decompose_claim
 from understanding.query_planner import build_search_queries
@@ -4190,6 +4164,15 @@ class VerificationPipeline:
 
         evidence = retrieval_result.get("evidence", [])
 
+        print("\n===== EVIDENCE BEFORE AGGREGATOR =====")
+
+        for e in evidence:
+            print(
+                e.title[:80],
+                "| RERANK =", getattr(e, "reranker_score", 0),
+                "| NLI =", getattr(e, "nli_label", "NONE")
+            )
+
         # =============================================
         # VERDICT AGGREGATION
         # =============================================
@@ -4197,24 +4180,25 @@ class VerificationPipeline:
         verdict_result = aggregate_verdicts(claim, evidence)
 
         # =============================================
-        # QWEN JUDGE (Fixed Indentation)
+        # EXPLANATION FROM BEST MATCHING EVIDENCE
         # =============================================
 
-        qwen_result = run_qwen_judge(
-            claim=claim,
-            system_verdict=verdict_result.get("verdict", "NEUTRAL"),
-            confidence=verdict_result.get("confidence", 0.0),
-            evidence_list=evidence,
-        )
+        best_evidence = None
 
-        print("\n[QWEN JUDGE]")
-        print(qwen_result)
+        for ev in evidence:
+            if getattr(ev, "nli_label", None) == verdict_result["verdict"]:
+                best_evidence = ev
+                break
 
-        explanation = generate_verdict_explanation(
-            claim=claim,
-            verdict=verdict_result.get("verdict", "NEUTRAL"),
-            evidence_list=evidence,
-        )
+        if best_evidence:
+            content_words = best_evidence.content.split()
+            explanation = (
+                f"{best_evidence.title}\n\n"
+                f"Source: {best_evidence.source_url}\n\n"
+                + " ".join(content_words[:300])
+            )
+        else:
+            explanation = "No matching evidence available."
 
         # =============================================
         # BUILD STATE OBJECT
@@ -4225,7 +4209,6 @@ class VerificationPipeline:
             retrieval_queries=queries,
             ranked_evidence=evidence,
             nli_results=evidence,
-            qwen_judge=qwen_result,
             final_verdict=verdict_result.get("verdict", "NEUTRAL"),
             confidence_score=verdict_result.get("confidence", 0.0),
             verdict_explanation=explanation,
@@ -4271,10 +4254,20 @@ FILE: .\retrieval\bm25_retriever.py
 import re
 from rank_bm25 import BM25Okapi
 
+STOPWORDS = {
+    "the", "a", "an", "is", "was", "were",
+    "be", "been", "being",
+    "has", "have", "had",
+    "do", "does", "did",
+    "of", "in", "on", "at",
+    "for", "to", "from",
+    "by", "with", "and", "or", "but"
+}
 
 # =====================================================
 # TOKENIZER
 # =====================================================
+
 
 def tokenize(text):
 
@@ -4290,6 +4283,11 @@ def tokenize(text):
 
         text
     )
+    tokens = [
+        token
+        for token in tokens
+        if token not in STOPWORDS
+    ]
 
     return tokens
 
@@ -4368,55 +4366,46 @@ FILE: .\retrieval\cross_encoder_reranker.py
 
 from sentence_transformers import CrossEncoder
 
-
-reranker = CrossEncoder(
-    "cross-encoder/ms-marco-MiniLM-L-6-v2"
-)
+reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
 
 
-def rerank_evidence(
-    claim,
-    evidence_list
-):
-
+def rerank_evidence(claim, evidence_list):
     pairs = []
-
     for evidence in evidence_list:
+        pairs.append([claim, f"title: {evidence.title} {evidence.content}"])
 
-        pairs.append([
-            claim,
-            evidence.content
-        ])
-    print(
-        f"[RERANKING] {len(evidence_list)} items"
-    )
-    scores = reranker.predict(
-        pairs
-    )
+    print(f"[RERANKING] {len(evidence_list)} items")
+    scores = reranker.predict(pairs)
 
-    scored = list(
-        zip(
-            evidence_list,
-            scores
-        )
-    )
-
-    scored.sort(
-        key=lambda x: x[1],
-        reverse=True
-    )
+    scored = list(zip(evidence_list, scores))
+    scored.sort(key=lambda x: x[1], reverse=True)
 
     ranked_evidence = []
-
     for evidence, score in scored:
+        score = float(score)
+        url = evidence.source_url.lower()
 
-        evidence.reranker_score = (
-            float(score)
-        )
+        # Source domain authority heuristic weighting
+        if ".gov" in url:
+            score += 2.0
+        elif "wikipedia.org" in url:
+            score += 1.5
+        elif "britannica.com" in url:
+            score += 1.5
+        elif ".edu" in url:
+            score += 1.0
+        elif "facebook.com" in url:
+            score -= 5.0
+        elif "instagram.com" in url:
+            score -= 5.0
+        elif "youtube.com" in url:
+            score -= 3.0
 
-        ranked_evidence.append(
-            evidence
-        )
+        evidence.reranker_score = score
+        ranked_evidence.append(evidence)
+
+    # Re-sort ranked_evidence if you want the domain weights to affect final ranking order
+    ranked_evidence.sort(key=lambda x: x.reranker_score, reverse=True)
 
     return ranked_evidence
 
@@ -4827,6 +4816,7 @@ from retrieval.cross_encoder_reranker import rerank_evidence
 from retrieval.web_search import search_web
 from retrieval.bm25_retriever import bm25_rank_evidence
 from analysis.nli_analyzer import analyze_claim_evidence
+from retrieval.wiki_retriever import retrieve_wikipedia
 
 # =====================================================
 # CONFIGURATION
@@ -4834,11 +4824,12 @@ from analysis.nli_analyzer import analyze_claim_evidence
 
 MIN_EVIDENCE_COUNT = 5
 MIN_STRONG_MATCHES = 3
-MIN_RERANK_SCORE = 0.60
+MIN_RERANK_SCORE = 3.0
 VERY_STRONG_SCORE = 0.80
-MAX_TOTAL_EVIDENCE = 15
-MAX_RESULTS_PER_QUERY = 5
-MAX_QUERIES_PER_ENGINE = 2
+MAX_TOTAL_EVIDENCE = 40
+MIN_STRONG_RERANK_SCORE = 5.0
+MAX_RESULTS_PER_QUERY = 3
+MAX_QUERIES_PER_ENGINE = 3
 MAX_EMPTY_ENGINES = 2
 MIN_ENGINE_YIELD = 2
 SATURATION_LIMIT = 2
@@ -4852,7 +4843,7 @@ def enough_evidence(evidence):
     if len(evidence) >= MIN_EVIDENCE_COUNT:
         strong_matches = [
             item for item in evidence
-            if getattr(item, "reranker_score", 0) >= MIN_RERANK_SCORE
+            if getattr(item, "reranker_score", 0) >= MIN_STRONG_RERANK_SCORE
         ]
         if len(strong_matches) >= MIN_STRONG_MATCHES:
             return True
@@ -4885,7 +4876,25 @@ def run_engine(engine, query):
 
 def prioritize_queries(queries):
 
-    return queries[:MAX_QUERIES_PER_ENGINE]
+    scored = []
+
+    for q in queries:
+
+        score = len(q.split())
+
+        scored.append(
+            (score, q)
+        )
+
+    scored.sort(
+        reverse=True
+    )
+
+    return [
+        q
+        for score, q
+        in scored[:MAX_QUERIES_PER_ENGINE]
+    ]
 
 
 # =====================================================
@@ -4953,7 +4962,7 @@ def determine_search_engines(claim_type):
     elif claim_type == "event":
         return ["serper", "tavily", "duckduckgo"]
     elif claim_type == "regional":
-        return ["rss", "google_cse", "youtube"]
+        return ["serper", "duckduckgo", "youtube"]
 
     return ["tavily", "serper", "duckduckgo"]
 
@@ -4962,8 +4971,7 @@ def determine_search_engines(claim_type):
 # MAIN RETRIEVAL PIPELINE
 # =====================================================
 
-
-def retrieve_evidence(claim, queries):
+def retrieve_evidence(claim, queries, decomposition=None):
     # ==========================================
     # CLAIM CLASSIFICATION
     # ==========================================
@@ -5006,6 +5014,27 @@ def retrieve_evidence(claim, queries):
         print(q)
 
     all_evidence = []
+
+    # ==========================================
+    # WIKIPEDIA RETRIEVAL
+    # ==========================================
+
+    wiki_results = retrieve_wikipedia(
+        claim,
+        decomposition
+    )
+
+    all_evidence.extend(
+        wiki_results
+    )
+    all_evidence = deduplicate_evidence(
+        all_evidence
+    )
+
+    print(
+        f"\n[WIKIPEDIA] {len(wiki_results)} results"
+    )
+
     used_engines = []
     stage_logs = []
     empty_engine_count = 0
@@ -5029,6 +5058,13 @@ def retrieve_evidence(claim, queries):
         # DEDUPLICATION
         # --------------------------------------
         engine_results = deduplicate_evidence(engine_results)
+        print("\n[ENGINE RESULTS]")
+
+        for e in engine_results[:10]:
+
+            print(
+                e.title
+            )
 
         # --------------------------------------
         # TRACK SUCCESSFUL ENGINE
@@ -5063,16 +5099,16 @@ def retrieve_evidence(claim, queries):
         # -----
         # BM25 ranking
         # -----
-        bm25_ranked = bm25_rank_evidence(claim, all_evidence, top_k=8)
+        bm25_ranked = bm25_rank_evidence(claim, all_evidence, top_k=20)
 
         # ----
         # DENSE rerank
         # ----
         reranked_preview = quick_rerank_check(claim, bm25_ranked)
 
-        if has_very_strong_match(reranked_preview):
-            all_evidence = reranked_preview
-            break
+        # if has_very_strong_match(reranked_preview):
+        #   all_evidence = reranked_preview
+        #  break
 
         # --------------------------------------
         # STRONG MATCHES
@@ -5102,6 +5138,14 @@ def retrieve_evidence(claim, queries):
             "saturation": saturation_counter
         })
 
+        print("\n[EARLY STOP CHECK]")
+
+        for e in reranked_preview:
+            print(
+                e.title[:60],
+                getattr(e, "reranker_score", 0)
+            )
+
         # --------------------------------------
         # EARLY STOP: ENOUGH STRONG EVIDENCE
         # --------------------------------------
@@ -5125,7 +5169,7 @@ def retrieve_evidence(claim, queries):
     # FINAL RERANK
     # ==========================================
     if all_evidence:
-        bm25_final = bm25_rank_evidence(claim, all_evidence, top_k=5)
+        bm25_final = bm25_rank_evidence(claim, all_evidence, top_k=20)
         final_ranked = rerank_evidence(claim, bm25_final)
         final_ranked = final_ranked[:5]
         print("\n[NLI EVIDENCE COUNT]", len(final_ranked))
@@ -5803,6 +5847,117 @@ def search_web(
 
 
 ================================================================================
+FILE: .\retrieval\wiki_retriever.py
+================================================================================
+
+import wikipediaapi
+
+from schemas.evidence_schema import Evidence
+
+
+wiki = wikipediaapi.Wikipedia(
+    user_agent="FactCheckerBot/1.0",
+    language="en"
+)
+
+
+def retrieve_wikipedia(
+    claim,
+    decomposition=None
+):
+
+    evidence_list = []
+
+    search_terms = []
+
+    # =====================================
+    # ENTITY FIRST
+    # =====================================
+
+    if decomposition:
+
+        entities = [
+            e["text"]
+            for e in decomposition.get(
+                "entities",
+                []
+            )
+        ]
+
+        event_phrases = decomposition.get(
+            "event_phrases",
+            []
+        )
+
+        search_terms.extend(
+            entities
+        )
+
+        search_terms.extend(
+            event_phrases
+        )
+        search_terms.extend(
+            decomposition.get(
+                "nouns",
+                []
+            )
+        )
+
+    # =====================================
+    # FALLBACK
+    # =====================================
+
+    if not search_terms:
+
+        search_terms.append(
+            claim
+        )
+
+    # =====================================
+    # PAGE LOOKUP
+    # =====================================
+
+    seen = set()
+    search_terms = list(
+        dict.fromkeys(search_terms)
+    )
+
+    for term in search_terms[:5]:
+
+        try:
+
+            page = wiki.page(term)
+
+            if not page.exists():
+                continue
+
+            if page.fullurl in seen:
+                continue
+
+            seen.add(
+                page.fullurl
+            )
+
+            evidence = Evidence(
+
+                title=page.title,
+
+                content=page.summary[:2000],
+
+                source_url=page.fullurl
+            )
+
+            evidence_list.append(
+                evidence
+            )
+
+        except Exception:
+            continue
+
+    return evidence_list
+
+
+================================================================================
 FILE: .\retrieval\__init__.py
 ================================================================================
 
@@ -6264,52 +6419,97 @@ nlp = spacy.load(
     "en_core_web_sm"
 )
 
-# ==========================================
-# BAD ENTITY TERMS
-# ==========================================
-
 BAD_ENTITY_TERMS = {
-
     "conduct",
-    "conducted",
-
     "host",
+    "organize",
+    "hold",
+    "run",
+    "conducted",
+    "conducting",
+
     "hosts",
     "hosted",
     "hosting",
 
-    "organize",
     "organized",
     "organised",
+    "organizing",
+    "organising",
 
-    "hold",
     "holds",
-    "held"
+    "held",
+    "holding",
+
+    "runs",
+    "running",
+    "ran",
+
+    "event",
+    "events",
+
+    "activity",
+    "activities",
+
+    "session",
+    "sessions",
+
+    "meeting",
+    "meetings",
+
+    "function",
+    "functions"
 }
 
-# ==========================================
-# ACTION NORMALIZATION
-# ==========================================
-
 ACTION_NORMALIZATION = {
+    "host": "conduct",
+    "conduct": "conduct",
+    "organize": "conduct",
+    "hold": "conduct",
+    "run": "conduct",
 
-    "hosts": "conduct",
-    "hosted": "conduct",
-    "hosting": "conduct",
+    "launch": "launch",
 
-    "conducted": "conduct",
+    "announce": "announce",
 
-    "organized": "conduct",
-    "organised": "conduct",
+    "report": "report",
 
-    "holds": "conduct",
-    "held": "conduct",
+    "claim": "report",
 
-    "launched": "launch",
+    "say": "report",
 
-    "announced": "announce",
+    "state": "report",
 
-    "reported": "report"
+    "complete": "complete",
+
+    "win": "win",
+
+    "support": "support",
+
+    "elect": "elect",
+
+    "arrest": "arrest",
+
+    "kill": "kill",
+    "celebrate": "conduct",
+    "observe": "conduct",
+    "commemorate": "conduct",
+    "facilitate": "conduct",
+    "coordinate": "conduct",
+    "sponsor": "conduct",
+    "arrange": "conduct",
+    "manage": "conduct",
+    "execute": "conduct",
+    "mention": "report",
+    "disclose": "report",
+    "reveal": "report",
+    "confirm": "report",
+    "deny": "report",
+    "assert": "report",
+    "allege": "report",
+    "achieve": "complete",
+    "finish": "complete",
+    "graduate": "complete"
 }
 
 # ==========================================
@@ -6317,7 +6517,6 @@ ACTION_NORMALIZATION = {
 # ==========================================
 
 NEGATION_WORDS = {
-
     "not",
     "never",
     "no",
@@ -6328,15 +6527,48 @@ NEGATION_WORDS = {
     "n't"
 }
 
+EVENT_NOUNS = {
+    "sprint", "conference", "workshop", "seminar",
+    "festival", "summit", "ceremony", "event",
+    "program", "programme", "competition",
+    "hackathon", "mission", "launch",
+    "election", "protest", "rally",
+    "earthquake", "flood", "cyclone", "landslide",
+    "accident", "crash", "explosion", "blast",
+    "attack", "riot", "murder", "arrest",
+    "outbreak", "award", "training",
+    "orientation",
+    "awareness",
+    "internship",
+    "fellowship",
+    "summit",
+    "bootcamp",
+    "sprint",
+    "webinar",
+    "symposium",
+    "lecture",
+    "dialogue",
+    "conclave",
+    "exhibition",
+    "expo",
+    "farewell",
+    "freshers",
+    "convocation",
+    "graduation"
+}
+
+DATE_CHUNK_PATTERN = re.compile(
+    r"^\d{1,2}\s+(january|february|march|april|may|june|july|august|september|october|november|december)$",
+    re.I
+)
 
 # ==========================================
 # ACTION NORMALIZATION
 # ==========================================
 
+
 def normalize_action(action):
-
     action = action.lower().strip()
-
     return ACTION_NORMALIZATION.get(
         action,
         action
@@ -6348,23 +6580,15 @@ def normalize_action(action):
 # ==========================================
 
 def clean_entity_text(text):
-
     text = text.strip().lower()
-
     tokens = text.split()
 
     filtered_tokens = [
-
         token
-
         for token in tokens
-
         if (
-
             token not in BAD_ENTITY_TERMS
-
             and
-
             len(token) > 1
         )
     ]
@@ -6381,21 +6605,16 @@ def clean_entity_text(text):
 # ==========================================
 
 def decompose_claim(claim):
-
     doc = nlp(claim)
 
     entities = []
-
     actions = []
-
     nouns = []
-
     noun_chunks = []
-
+    event_terms = []
+    event_phrases = []
     numbers = []
-
     dates = []
-
     negations = []
 
     # ==========================================
@@ -6403,17 +6622,13 @@ def decompose_claim(claim):
     # ==========================================
 
     for ent in doc.ents:
-
         cleaned_text = clean_entity_text(
             ent.text
         )
 
         if cleaned_text:
-
             entities.append({
-
                 "text": cleaned_text,
-
                 "label": ent.label_
             })
 
@@ -6422,7 +6637,6 @@ def decompose_claim(claim):
     # ==========================================
 
     for token in doc:
-
         token_text = token.text.lower()
 
         # --------------------------------------
@@ -6430,20 +6644,14 @@ def decompose_claim(claim):
         # --------------------------------------
 
         if token.pos_ == "VERB":
-
             if (
-
                 token.is_alpha
-
                 and
-
                 len(token.lemma_) > 2
             ):
-
                 normalized = normalize_action(
                     token.lemma_.lower()
                 )
-
                 actions.append(
                     normalized
                 )
@@ -6453,23 +6661,21 @@ def decompose_claim(claim):
         # --------------------------------------
 
         if token.pos_ in [
-
             "NOUN",
             "PROPN"
         ]:
-
             if len(token_text) > 2:
-
                 nouns.append(
                     token_text
                 )
+                if token_text in EVENT_NOUNS:
+                    event_terms.append(token_text)
 
         # --------------------------------------
         # NUMBERS
         # --------------------------------------
 
         if token.like_num:
-
             numbers.append(
                 token_text
             )
@@ -6479,7 +6685,6 @@ def decompose_claim(claim):
         # --------------------------------------
 
         if token_text in NEGATION_WORDS:
-
             negations.append(
                 token_text
             )
@@ -6489,37 +6694,36 @@ def decompose_claim(claim):
     # ==========================================
 
     for chunk in doc.noun_chunks:
-
         cleaned_chunk = (
             chunk.text
             .strip()
             .lower()
         )
 
+        if DATE_CHUNK_PATTERN.match(cleaned_chunk):
+            continue
+
         if (
-
             len(cleaned_chunk) > 2
-
             and
-
             not cleaned_chunk.isnumeric()
         ):
-
-            noun_chunks.append(
-                cleaned_chunk
-            )
+            noun_chunks.append(cleaned_chunk)
+            chunk_words = set(cleaned_chunk.split())
+            if chunk_words & EVENT_NOUNS:
+                event_phrases.append(cleaned_chunk)
+                event_phrases.append(
+                    cleaned_chunk
+                )
 
     # ==========================================
     # DATE EXTRACTION
     # ==========================================
 
     date_patterns = re.findall(
-
         r"\b(?:19|20)\d{2}\b",
-
         claim
     )
-
     dates.extend(date_patterns)
 
     # ==========================================
@@ -6527,26 +6731,20 @@ def decompose_claim(claim):
     # ==========================================
 
     entities = list({
-
         (
             e["text"],
             e["label"]
         ): e
-
         for e in entities
-
     }.values())
 
     actions = list(set(actions))
-
+    event_terms = list(set(event_terms))
+    event_phrases = list(set(event_phrases))
     nouns = list(set(nouns))
-
     noun_chunks = list(set(noun_chunks))
-
     numbers = list(set(numbers))
-
     dates = list(set(dates))
-
     negations = list(set(negations))
 
     # ==========================================
@@ -6554,7 +6752,6 @@ def decompose_claim(claim):
     # ==========================================
 
     claim_lower = claim.lower()
-
     claim_type = "general"
 
     # ------------------------------------------
@@ -6562,7 +6759,6 @@ def decompose_claim(claim):
     # ------------------------------------------
 
     if any(word in claim_lower for word in [
-
         "said",
         "announced",
         "reported",
@@ -6570,9 +6766,7 @@ def decompose_claim(claim):
         "claim",
         "stated",
         "according to"
-
     ]):
-
         claim_type = "statement"
 
     # ------------------------------------------
@@ -6580,7 +6774,6 @@ def decompose_claim(claim):
     # ------------------------------------------
 
     elif any(word in claim_lower for word in [
-
         "won",
         "hosted",
         "conducted",
@@ -6590,17 +6783,17 @@ def decompose_claim(claim):
         "organised",
         "performed",
         "celebrated"
-
     ]):
-
         claim_type = "event"
 
-    # ------------------------------------------
+    # EVENT CLAIM VIA EVENT TERMS
+
+    elif event_terms:
+        claim_type = "event"
+
     # NUMERIC CLAIM
-    # ------------------------------------------
 
     elif any(char.isdigit() for char in claim):
-
         claim_type = "numeric"
 
     # ------------------------------------------
@@ -6608,7 +6801,6 @@ def decompose_claim(claim):
     # ------------------------------------------
 
     elif any(word in claim_lower for word in [
-
         "better",
         "worse",
         "higher",
@@ -6618,9 +6810,7 @@ def decompose_claim(claim):
         "largest",
         "smallest",
         "biggest"
-
     ]):
-
         claim_type = "comparison"
 
     # ------------------------------------------
@@ -6628,7 +6818,6 @@ def decompose_claim(claim):
     # ------------------------------------------
 
     elif any(word in claim_lower for word in [
-
         "today",
         "yesterday",
         "tomorrow",
@@ -6637,9 +6826,7 @@ def decompose_claim(claim):
         "in 2024",
         "in 2025",
         "in 2026"
-
     ]):
-
         claim_type = "temporal"
 
     # ------------------------------------------
@@ -6647,15 +6834,12 @@ def decompose_claim(claim):
     # ------------------------------------------
 
     elif any(word in claim_lower for word in [
-
         "because",
         "due to",
         "caused",
         "resulted in",
         "led to"
-
     ]):
-
         claim_type = "causal"
 
     # ==========================================
@@ -6663,22 +6847,16 @@ def decompose_claim(claim):
     # ==========================================
 
     return {
-
         "entities": entities,
-
         "actions": actions,
-
         "nouns": nouns,
-
         "noun_chunks": noun_chunks,
-
         "numbers": numbers,
-
         "dates": dates,
-
         "negations": negations,
-
-        "claim_type": claim_type
+        "claim_type": claim_type,
+        "event_terms": event_terms,
+        "event_phrases": event_phrases,
     }
 
 
@@ -7000,230 +7178,176 @@ from datetime import datetime
 
 CURRENT_YEAR = datetime.now().year
 
-# =====================================================
-# STOPWORDS
-# =====================================================
-STOPWORDS = {
-    "the", "a", "an", "is", "was", "were", "be", "been", "being",
-    "has", "have", "had", "do", "does", "did", "of", "in", "on",
-    "at", "for", "to", "from", "by", "with", "and", "or", "but"
-}
 
 # =====================================================
-# ABBREVIATIONS
+# CLEANER
 # =====================================================
-ABBREVIATIONS = {
-    "nagaland university": "NU",
-    "indian institute of technology": "IIT",
-    "all india institute of medical sciences": "AIIMS"
-}
 
-
-# =====================================================
-# TEXT CLEANER
-# =====================================================
 def clean_text(text):
-    text = text.lower().strip()
+    text = text.strip()
     text = re.sub(r"\s+", " ", text)
     return text
 
 
 # =====================================================
-# QUERY SCORING
-# =====================================================
-def score_query(query, claim):
-    query_words = set(clean_text(query).split())
-    claim_words = set(clean_text(claim).split())
-
-    overlap = len(query_words & claim_words)
-    score = overlap
-
-    if len(query_words) >= 4:
-        score += 2
-
-    if len(query_words) >= 6:
-        score += 2
-
-    if len(query_words) < 3:
-        score -= 5
-
-    return score
-
-
-# =====================================================
 # QUERY BUILDER
 # =====================================================
+
 def build_search_queries(claim, decomposition):
-    queries = set()
+
     claim = clean_text(claim)
 
-    # ==========================================
-    # ORIGINAL CLAIM
-    # ==========================================
-    queries.add(claim)
+    queries = []
 
     # ==========================================
-    # ENTITY EXTRACTION
+    # 1. ORIGINAL CLAIM
     # ==========================================
-    entity_names = [
+
+    queries.append(claim)
+
+    # ==========================================
+    # 2. CLAIM + YEAR
+    # ==========================================
+
+    queries.append(
+        f"{claim} {CURRENT_YEAR}"
+    )
+
+    # ==========================================
+    # 3. ENTITY EXTRACTION
+    # ==========================================
+
+    entities = [
+
         clean_text(ent["text"])
-        for ent in decomposition.get("entities", [])
+
+        for ent in decomposition.get(
+            "entities",
+            []
+        )
     ]
 
+    entity_string = " ".join(
+        entities
+    )
+
     # ==========================================
-    # NOUN CHUNKS
+    # 4. RELATION EXTRACTION
     # ==========================================
-    noun_chunks = [
-        clean_text(chunk)
-        for chunk in decomposition.get("noun_chunks", [])
+
+    relations = []
+
+    lower_claim = claim.lower()
+
+    relation_patterns = [
+
+        "capital of",
+
+        "chief minister of",
+
+        "president of",
+
+        "founder of",
+
+        "located in",
+
+        "part of",
+
+        "member of",
+
+        "headquarters of",
+
+        "representing",
+
+        "winner of",
+
+        "startup sprint",
+
+        "startup program",
+
+        "startup programme",
+
+        "completed startup sprint"
     ]
 
-    # ==========================================
-    # ACTIONS
-    # ==========================================
-    actions = decomposition.get("actions", [])
+    for pattern in relation_patterns:
+
+        if pattern in lower_claim:
+
+            relations.append(
+                pattern
+            )
 
     # ==========================================
-    # ENTITY QUERIES
+    # 5. RELATIONAL QUERY
     # ==========================================
-    if entity_names:
-        # Exact quoted
-        quoted_entities = " ".join([f'"{e}"' for e in entity_names])
-        queries.add(quoted_entities)
 
-        # Relaxed entity query
-        relaxed_entities = " ".join(entity_names)
-        queries.add(relaxed_entities)
+    for relation in relations:
 
-    # ==========================================
-    # NOUN CHUNK QUERIES
-    # ==========================================
-    for chunk in noun_chunks:
-        if len(chunk.split()) >= 2:
-            # Exact noun chunk
-            queries.add(f'"{chunk}"')
-            # Relaxed noun chunk
-            queries.add(chunk)
+        if entities:
+
+            queries.append(
+                f'{entity_string} "{relation}"'
+            )
+
+            queries.append(
+                f'"{relation}" {entity_string}'
+            )
 
     # ==========================================
-    # ENTITY + ACTION QUERY
+    # 6. QUOTED CLAIM FRAGMENT
     # ==========================================
-    if entity_names and actions:
-        event_query = f'{" ".join(entity_names)} {" ".join(actions)}'
-        queries.add(event_query)
+
+    if len(claim.split()) >= 4:
+
+        queries.append(
+            f'"{claim}"'
+        )
 
     # ==========================================
-    # ENTITY + NOUN MIX
+    # 7. OFFICIAL SOURCE QUERY
     # ==========================================
-    if entity_names and noun_chunks:
-        for entity in entity_names[:2]:
-            for chunk in noun_chunks[:3]:
-                mixed_query = f"{entity} {chunk}"
-                queries.add(mixed_query)
+
+    if entities:
+
+        queries.append(
+            f'site:gov {entity_string}'
+        )
 
     # ==========================================
-    # COMPACT QUERY
+    # 8. FACT VERIFICATION QUERY
     # ==========================================
-    compact_words = [
-        word for word in claim.split()
-        if word.lower() not in STOPWORDS
-    ]
-    compact_query = " ".join(compact_words)
-    if compact_query:
-        queries.add(compact_query)
+
+    if entities and relations:
+
+        for relation in relations:
+
+            queries.append(
+                f'"{relation}" {entity_string} {CURRENT_YEAR}'
+            )
 
     # ==========================================
-    # DATE VARIANTS
+    # DEDUPLICATE
     # ==========================================
-    queries.add(f"{claim} {CURRENT_YEAR}")
 
-    # ==========================================
-    # ABBREVIATION VARIANTS
-    # ==========================================
-    for full_name, short_name in ABBREVIATIONS.items():
-        if full_name in claim:
-            abbreviated = claim.replace(full_name, short_name)
-            queries.add(abbreviated)
-
-    # ==========================================
-    # EDUCATIONAL / OFFICIAL SOURCES
-    # ==========================================
-    if entity_names:
-        official_query = f'site:edu {" ".join(entity_names)}'
-        queries.add(official_query)
-
-        official_query_2 = f'site:ac.in {" ".join(entity_names)}'
-        queries.add(official_query_2)
-
-    # ==========================================
-    # SEMANTIC EVENT VARIANTS
-    # ==========================================
-    EVENT_VARIANTS = {
-        "parting": ["farewell", "sendoff"],
-        "programme": ["event", "ceremony"],
-        "social": ["gathering", "celebration"]
-    }
-
-    for original, variants in EVENT_VARIANTS.items():
-        if original in claim:
-            for variant in variants:
-                semantic_variant = claim.replace(original, variant)
-                queries.add(semantic_variant)
-
-    # ---
-    # NEWS style queries
-    # --
-    if entity_names:
-        for entity in entity_names:
-            queries.add(f"{entity} press release")
-            queries.add(f"{entity} official statement")
-            queries.add(f"{entity} announcement")
-            queries.add(f"{entity} event")
-
-    # ---
-    # TEMPORAL queries
-    # ---
-    queries.add(f"{claim} this week")
-    queries.add(f"{claim} this month")
-    queries.add(f"{claim} this year")
-
-    # ==========================================
-    # CLEANUP
-    # ==========================================
-    clean_queries = []
     seen = set()
 
-    for query in queries:
-        query = clean_text(query)
-        if len(query) > 3 and query not in seen:
-            clean_queries.append(query)
-            seen.add(query)
+    final_queries = []
 
-    # ==========================================
-    # FILTER SHORT QUERIES
-    # ==========================================
-    filtered_queries = []
-    for query in clean_queries:
-        if len(query.split()) < 3:
-            continue
-        filtered_queries.append(query)
+    for q in queries:
 
-    # ==========================================
-    # SCORE QUERIES
-    # ==========================================
-    scored_queries = []
-    for query in filtered_queries:
-        score = score_query(query, claim)
-        scored_queries.append((score, query))
+        q = clean_text(q)
 
-    scored_queries.sort(key=lambda x: x[0], reverse=True)
+        if q not in seen:
 
-    final_queries = [
-        query for score, query in scored_queries[:10]
-    ]
+            seen.add(q)
+
+            final_queries.append(q)
 
     print("\n[TOP QUERIES]")
-    for q in final_queries[:5]:
+
+    for q in final_queries:
+
         print(q)
 
     return final_queries

@@ -1,10 +1,20 @@
 import re
 from rank_bm25 import BM25Okapi
 
+STOPWORDS = {
+    "the", "a", "an", "is", "was", "were",
+    "be", "been", "being",
+    "has", "have", "had",
+    "do", "does", "did",
+    "of", "in", "on", "at",
+    "for", "to", "from",
+    "by", "with", "and", "or", "but"
+}
 
 # =====================================================
 # TOKENIZER
 # =====================================================
+
 
 def tokenize(text):
 
@@ -20,6 +30,11 @@ def tokenize(text):
 
         text
     )
+    tokens = [
+        token
+        for token in tokens
+        if token not in STOPWORDS
+    ]
 
     return tokens
 

@@ -1,8 +1,6 @@
 from types import SimpleNamespace
-from analysis.qwen_judge import run_qwen_judge
 from analysis.report_generator import build_report
 from analysis.verdict_aggregator import aggregate_verdicts
-from analysis.verdict_explainer import generate_verdict_explanation
 from retrieval.hybrid_retriever import retrieve_evidence
 from understanding.claim_decomposer import decompose_claim
 from understanding.query_planner import build_search_queries
@@ -43,6 +41,15 @@ class VerificationPipeline:
 
         evidence = retrieval_result.get("evidence", [])
 
+        print("\n===== EVIDENCE BEFORE AGGREGATOR =====")
+
+        for e in evidence:
+            print(
+                e.title[:80],
+                "| RERANK =", getattr(e, "reranker_score", 0),
+                "| NLI =", getattr(e, "nli_label", "NONE")
+            )
+
         # =============================================
         # VERDICT AGGREGATION
         # =============================================
@@ -50,24 +57,25 @@ class VerificationPipeline:
         verdict_result = aggregate_verdicts(claim, evidence)
 
         # =============================================
-        # QWEN JUDGE (Fixed Indentation)
+        # EXPLANATION FROM BEST MATCHING EVIDENCE
         # =============================================
 
-        qwen_result = run_qwen_judge(
-            claim=claim,
-            system_verdict=verdict_result.get("verdict", "NEUTRAL"),
-            confidence=verdict_result.get("confidence", 0.0),
-            evidence_list=evidence,
-        )
+        best_evidence = None
 
-        print("\n[QWEN JUDGE]")
-        print(qwen_result)
+        for ev in evidence:
+            if getattr(ev, "nli_label", None) == verdict_result["verdict"]:
+                best_evidence = ev
+                break
 
-        explanation = generate_verdict_explanation(
-            claim=claim,
-            verdict=verdict_result.get("verdict", "NEUTRAL"),
-            evidence_list=evidence,
-        )
+        if best_evidence:
+            content_words = best_evidence.content.split()
+            explanation = (
+                f"{best_evidence.title}\n\n"
+                f"Source: {best_evidence.source_url}\n\n"
+                + " ".join(content_words[:300])
+            )
+        else:
+            explanation = "No matching evidence available."
 
         # =============================================
         # BUILD STATE OBJECT
@@ -78,7 +86,6 @@ class VerificationPipeline:
             retrieval_queries=queries,
             ranked_evidence=evidence,
             nli_results=evidence,
-            qwen_judge=qwen_result,
             final_verdict=verdict_result.get("verdict", "NEUTRAL"),
             confidence_score=verdict_result.get("confidence", 0.0),
             verdict_explanation=explanation,

@@ -87,13 +87,11 @@ Rules:
 
 - Use only the evidence provided.
 - Do not infer missing facts.
-- Do not assume that:
-  - organizing an event means completing it
-  - announcing something means it happened
-  - planning something means it occurred
-  - discussing something means it was achieved
-- If any important part of the claim is not explicitly stated in the evidence,
-  return NOT_ENOUGH_INFORMATION.
+- Interpret common event-completion language naturally.
+- If evidence states an event was held, organized, conducted, or took place on a date,
+  that can support a claim that the event occurred on that date.
+- Minor wording differences are acceptable when the core event,
+  organization, and date clearly match.
 - Focus on what the evidence directly reports.
 
 After deciding the verdict, write a factual explanation.

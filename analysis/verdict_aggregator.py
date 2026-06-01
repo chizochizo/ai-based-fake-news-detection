@@ -211,7 +211,7 @@ def aggregate_verdicts(claim, evidence_list):
             print("CONFLICTS A:", conflicts_a)
             print("CONFLICTS B:", conflicts_b)
 
-            if opposite_labels or strong_conflict:
+            if opposite_labels and strong_conflict:
                 print("\n[CONTRADICTION PAIR FOUND]")
                 print("A:", evidence_a.title)
                 print("B:", evidence_b.title)
